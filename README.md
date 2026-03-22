@@ -76,6 +76,25 @@ Root README is conceptual. Implementation and operations are documented in submo
 - Backend architecture, protocol contracts, and runtime details: [backend/README.md](backend/README.md)
 - Frontend architecture, state flow, and UI behavior: [frontend/README.md](frontend/README.md)
 
+## Remote Deployment
+
+This repository includes a production Docker pipeline (`Dockerfile`) and a
+Render Blueprint (`render.yaml`).
+
+The container builds frontend + backend, then runs a single Go process that:
+
+- serves the compiled UI from `STATIC_DIR`,
+- exposes WebSocket at `/ws`,
+- exposes health checks at `/health`,
+- reads cloud port from `PORT`.
+
+Deploy on Render:
+
+1. Push this repository to GitHub.
+2. In Render, choose **New + -> Blueprint** and select this repo.
+3. Render provisions the `raft-visualizer` web service from `render.yaml`.
+4. Open `https://<your-service>.onrender.com`.
+
 ## Scope and Non-Goals
 
 This is a simulation platform, not a production consensus library. Some production concerns are intentionally out of scope (for example durable storage, membership reconfiguration, and log compaction), because the primary objective is clear visualization of core Raft behavior.

@@ -17,8 +17,12 @@ It is designed for **observability and learning**, not production deployment.
 
 - `GET /health` -> `200 OK` (basic liveness)
 - `GET /ws` -> WebSocket upgrade endpoint
+- `GET /` -> frontend static assets when `STATIC_DIR` is configured
 
-Default listen address: `:8080`.
+Listen address:
+
+- default: `:8080`
+- cloud/platform: `:$PORT` when `PORT` is set
 
 ## High-Level Architecture
 
@@ -27,7 +31,7 @@ main.go
   ├─ ws.NewHub()
   ├─ simulator.New(clusterSize, onStateChange -> hub.Broadcast)
   ├─ go faultLoop(cluster, hub)
-  └─ http handlers: /ws, /health
+  └─ http handlers: /ws, /health, optional static SPA (/)
 
 raft/Node goroutines
   ├─ run election timers

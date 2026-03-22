@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: raft-visualizer
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    autoDeploy: true
+    healthCheckPath: /health

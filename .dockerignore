@@ -1,0 +1,10 @@
+.git
+.gitignore
+.idea
+.claude
+.DS_Store
+
+frontend/node_modules
+frontend/dist
+
+backend/raft-visualizer

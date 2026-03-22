@@ -3,6 +3,10 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
+	"path"
+	"path/filepath"
+	"strings"
 
 	"github.com/yourusername/raft-visualizer/simulator"
 	"github.com/yourusername/raft-visualizer/ws"
@@ -10,7 +14,7 @@ import (
 
 const (
 	clusterSize = 5
-	addr        = ":8080"
+	defaultPort = "8080"
 )
 
 func main() {
@@ -30,17 +34,61 @@ func main() {
 	// happens here, off the WebSocket read pump.
 	go faultLoop(cluster, hub)
 
-	http.HandleFunc("/ws", ws.Handler(hub))
+	mux := http.NewServeMux()
+	mux.HandleFunc("/ws", ws.Handler(hub))
 
 	// Static health check endpoint so load balancers / Docker have something
 	// to probe without needing a WebSocket client.
-	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
+	staticDir := strings.TrimSpace(os.Getenv("STATIC_DIR"))
+	if staticDir != "" {
+		log.Printf("serving static frontend from %s", staticDir)
+		mux.HandleFunc("/", spaHandler(staticDir))
+	}
+
+	addr := listenAddr()
 	log.Printf("listening on %s  (cluster: %d nodes)", addr, clusterSize)
-	if err := http.ListenAndServe(addr, nil); err != nil {
+	if err := http.ListenAndServe(addr, mux); err != nil {
 		log.Fatalf("server: %v", err)
+	}
+}
+
+func listenAddr() string {
+	port := strings.TrimSpace(os.Getenv("PORT"))
+	if port == "" {
+		port = defaultPort
+	}
+	if strings.HasPrefix(port, ":") {
+		return port
+	}
+	return ":" + port
+}
+
+// spaHandler serves compiled frontend assets when STATIC_DIR is configured.
+// Unknown routes fall back to index.html so client-side routing keeps working.
+func spaHandler(staticDir string) http.HandlerFunc {
+	fileServer := http.FileServer(http.Dir(staticDir))
+	indexPath := filepath.Join(staticDir, "index.html")
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		cleanPath := path.Clean("/" + r.URL.Path)
+		if cleanPath != "/" {
+			candidate := filepath.Join(staticDir, filepath.FromSlash(strings.TrimPrefix(cleanPath, "/")))
+			if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+				fileServer.ServeHTTP(w, r)
+				return
+			}
+		}
+
+		http.ServeFile(w, r, indexPath)
 	}
 }
 
