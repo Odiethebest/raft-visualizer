@@ -8,6 +8,7 @@ import '@xyflow/react/dist/style.css'
 
 import { useClusterStore } from '../store/clusterStore'
 import NodeCard from './NodeCard'
+import HintCard from './HintCard'
 import styles from './ClusterView.module.css'
 
 // --- Layout -----------------------------------------------------------
@@ -121,6 +122,7 @@ export default function ClusterView() {
 
   return (
     <div className={styles.canvas}>
+      <HintCard />
       <ReactFlow
         nodes={flowNodes}
         edges={flowEdges}
