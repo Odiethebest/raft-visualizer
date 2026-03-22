@@ -1,0 +1,81 @@
+import { create } from 'zustand'
+
+// deriveEvents compares two node snapshots and emits human-readable event
+// strings for any meaningful transitions. We intentionally skip minor churn
+// (e.g. repeated heartbeat acks) and only surface role changes, term bumps,
+// and aliveness changes — the things a reader actually wants to track.
+function deriveEvents(prevNodes, nextNodes) {
+  const events = []
+  const now = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
+
+  for (const next of nextNodes) {
+    const prev = prevNodes.find(n => n.id === next.id)
+    if (!prev) continue
+
+    if (prev.role !== next.role) {
+      const level = next.role === 'leader' ? 'active' : 'normal'
+      events.push({ time: now, message: `node ${next.id} became ${next.role} (term ${next.term})`, level })
+    } else if (prev.term !== next.term) {
+      events.push({ time: now, message: `node ${next.id} term → ${next.term}`, level: 'normal' })
+    }
+
+    if (prev.alive && !next.alive) {
+      events.push({ time: now, message: `node ${next.id} killed`, level: 'warn' })
+    } else if (!prev.alive && next.alive) {
+      events.push({ time: now, message: `node ${next.id} restarted`, level: 'normal' })
+    }
+
+    if (next.commitIndex > prev.commitIndex) {
+      events.push({ time: now, message: `node ${next.id} committed → ${next.commitIndex}`, level: 'normal' })
+    }
+  }
+
+  return events
+}
+
+export const useClusterStore = create((set, get) => ({
+  nodes: [],
+  inFlight: [],
+  // Events are prepended so the newest appears at the top; capped at 200 to
+  // prevent unbounded growth during a long session.
+  events: [],
+  selectedNodeId: null,
+  wsStatus: 'connecting', // 'connecting' | 'connected' | 'reconnecting'
+
+  // Injected by useRaftWS so any component can fire fault commands without
+  // knowing about the WebSocket directly.
+  sendFault: null,
+
+  applyStateUpdate(payload) {
+    const { nodes: raw, inFlight } = payload
+    const prev = get().nodes
+
+    // Annotate each log entry with its committed status. The backend sends
+    // commitIndex as a scalar; we convert it here so components can treat
+    // each entry as self-describing.
+    const nodes = raw.map(n => ({
+      ...n,
+      log: (n.log ?? []).map(entry => ({
+        ...entry,
+        committed: entry.index <= n.commitIndex,
+      })),
+    }))
+
+    const newEvents = prev.length > 0 ? deriveEvents(prev, nodes) : []
+
+    set(state => ({
+      nodes,
+      inFlight,
+      events: [...newEvents, ...state.events].slice(0, 200),
+    }))
+  },
+
+  selectNode(id) {
+    set(state => ({
+      selectedNodeId: state.selectedNodeId === id ? null : id,
+    }))
+  },
+
+  setWsStatus(status) { set({ wsStatus: status }) },
+  setSendFault(fn)    { set({ sendFault: fn }) },
+}))

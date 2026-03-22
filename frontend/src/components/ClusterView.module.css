@@ -1,0 +1,35 @@
+.canvas {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  /* Dot-grid background — radial-gradient places one dot at each grid
+     intersection. This is purely decorative; it gives the canvas depth
+     without distracting from the node graph. */
+  background-color: var(--bg-canvas);
+  background-image: radial-gradient(circle, var(--dot-color) 1px, transparent 1px);
+  background-size: var(--dot-spacing) var(--dot-spacing);
+}
+
+/* xyflow injects its own styles; we override just what conflicts with our
+   design system here rather than fighting the defaults globally. */
+.canvas :global(.react-flow__renderer) {
+  z-index: 0;
+}
+
+.canvas :global(.react-flow__background) {
+  display: none; /* we use our own dot-grid via background-image above */
+}
+
+.canvas :global(.react-flow__controls) {
+  display: none;
+}
+
+.canvas :global(.react-flow__attribution) {
+  display: none;
+}
+
+/* Edge base style — a quiet gray line that lets the node colors pop */
+.canvas :global(.react-flow__edge-path) {
+  stroke: var(--border-main);
+  stroke-width: 1.5;
+}
