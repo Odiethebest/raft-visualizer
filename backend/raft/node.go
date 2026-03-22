@@ -7,11 +7,13 @@ import (
 )
 
 const (
-	// electionTimeoutMin / Max follow the Raft paper's recommendation of 150–300ms.
-	// The randomization is what prevents split votes from becoming a livelock:
-	// if all nodes timed out simultaneously every time, you'd never elect a leader.
-	electionTimeoutMin = 150 * time.Millisecond
-	electionTimeoutMax = 300 * time.Millisecond
+	// The Raft paper requires broadcastTime ≪ electionTimeout. In practice
+	// "≪" means at least 10×. With heartbeatInterval = 50ms, a 500–800ms
+	// election timeout gives a 10–16× ratio, leaving plenty of margin for
+	// goroutine scheduling jitter. The previous 150–300ms values (only 3–6×)
+	// caused spurious elections under normal scheduling latency.
+	electionTimeoutMin = 500 * time.Millisecond
+	electionTimeoutMax = 800 * time.Millisecond
 
 	// heartbeatInterval must be significantly shorter than the election timeout
 	// floor so that a live leader always suppresses follower timeouts before they
@@ -43,13 +45,8 @@ type Node struct {
 	// Volatile state on leaders only (reinitialized after each election).
 	// nextIndex[peer] is the next log index to send to that peer.
 	// matchIndex[peer] is the highest log index known to be replicated there.
-	// sentUpTo[peer] is the last log index included in the most recent
-	// AppendEntries we sent to that peer. We need this in the reply handler
-	// because by the time the reply arrives, nextIndex may not reflect what
-	// was actually in that particular RPC.
 	nextIndex  map[int]int
 	matchIndex map[int]int
-	sentUpTo   map[int]int
 
 	role Role
 	// votesReceived tracks which peers have granted us a vote in the current
@@ -58,6 +55,12 @@ type Node struct {
 	votesReceived map[int]bool
 
 	alive bool // false means the node is "crashed" — it ignores all messages
+
+	// heartbeatStop is closed to signal the current heartbeat goroutine to
+	// exit. A new channel is created each time the node becomes leader,
+	// preventing goroutine accumulation across leadership terms and ensuring
+	// cleanup when the node stops.
+	heartbeatStop chan struct{}
 
 	// electionTimer fires when we haven't heard from a leader. Reset on every
 	// valid AppendEntries (including heartbeats). We own this timer exclusively
@@ -118,6 +121,9 @@ func (n *Node) Run(stopCh <-chan struct{}) {
 	for {
 		select {
 		case <-stopCh:
+			n.mu.Lock()
+			n.closeHeartbeatStop()
+			n.mu.Unlock()
 			n.electionTimer.Stop()
 			return
 
@@ -172,6 +178,9 @@ func (n *Node) handleMessage(msg Message) {
 // Caller must hold n.mu.
 func (n *Node) maybeStepDown(incomingTerm int) {
 	if incomingTerm > n.currentTerm {
+		if n.role == Leader {
+			n.closeHeartbeatStop()
+		}
 		n.currentTerm = incomingTerm
 		n.role = Follower
 		n.votedFor = -1
@@ -185,7 +194,6 @@ func (n *Node) becomeLeader() {
 	n.role = Leader
 	n.nextIndex = make(map[int]int)
 	n.matchIndex = make(map[int]int)
-	n.sentUpTo = make(map[int]int)
 
 	// nextIndex starts optimistically at the end of our log. If a follower's
 	// log diverges, we'll roll back on rejection.
@@ -193,7 +201,6 @@ func (n *Node) becomeLeader() {
 	for _, peer := range n.peers {
 		n.nextIndex[peer] = nextIdx
 		n.matchIndex[peer] = 0
-		n.sentUpTo[peer] = 0
 	}
 
 	n.notifyChange()
@@ -201,28 +208,33 @@ func (n *Node) becomeLeader() {
 	// Subsequent heartbeats come from runHeartbeatLoop (a separate goroutine
 	// that acquires its own lock each tick).
 	n.sendHeartbeatsLocked()
-	go n.runHeartbeatLoop()
+
+	n.heartbeatStop = make(chan struct{})
+	go n.runHeartbeatLoop(n.heartbeatStop)
 }
 
 // runHeartbeatLoop periodically fires AppendEntries to all peers as long as
-// this node remains the leader. It exits as soon as the node steps down.
+// this node remains the leader. It exits when the stop channel is closed
+// (which happens when the node steps down, dies, or the Run loop exits).
 //
-// This goroutine is spawned by becomeLeader and exits on its own — the leader
-// node's Run loop is responsible for calling becomeLeader exactly once per term.
-func (n *Node) runHeartbeatLoop() {
+// Previous versions checked n.role inside the loop, but that allowed goroutine
+// accumulation if a node won multiple elections rapidly — the old loop would
+// see role == Leader (from the new term) and keep running alongside the new one.
+// The explicit stop channel eliminates that race.
+func (n *Node) runHeartbeatLoop(stop <-chan struct{}) {
 	ticker := time.NewTicker(heartbeatInterval)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		n.mu.Lock()
-		isLeader := n.role == Leader && n.alive
-		if isLeader {
-			n.sendHeartbeatsLocked()
-		}
-		n.mu.Unlock()
-
-		if !isLeader {
+	for {
+		select {
+		case <-stop:
 			return
+		case <-ticker.C:
+			n.mu.Lock()
+			if n.role == Leader && n.alive {
+				n.sendHeartbeatsLocked()
+			}
+			n.mu.Unlock()
 		}
 	}
 }
@@ -256,10 +268,6 @@ func (n *Node) sendAppendEntries(peer int) {
 		entries = make([]LogEntry, len(n.log[next-1:]))
 		copy(entries, n.log[next-1:])
 	}
-
-	// Record the highest index included in this RPC so the reply handler
-	// knows how far the peer has gotten if the RPC succeeds.
-	n.sentUpTo[peer] = len(n.log)
 
 	n.send(Message{
 		From: n.id,
@@ -309,6 +317,7 @@ func (n *Node) Kill() {
 	defer n.mu.Unlock()
 
 	n.alive = false
+	n.closeHeartbeatStop()
 	n.electionTimer.Stop()
 	n.notifyChange()
 }
@@ -358,6 +367,16 @@ func (n *Node) Snapshot() Snapshot {
 }
 
 // --- internal helpers (all called with mu held unless noted) ---
+
+// closeHeartbeatStop signals the current heartbeat goroutine (if any) to exit
+// by closing its stop channel, then nils the field so it won't be closed twice.
+// Caller must hold n.mu.
+func (n *Node) closeHeartbeatStop() {
+	if n.heartbeatStop != nil {
+		close(n.heartbeatStop)
+		n.heartbeatStop = nil
+	}
+}
 
 // lastLogIndex returns the index of the last entry in the log, or 0 if empty.
 func (n *Node) lastLogIndex() int {

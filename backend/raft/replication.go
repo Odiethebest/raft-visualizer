@@ -21,8 +21,12 @@ func (n *Node) handleAppendEntries(msg Message) {
 		return
 	}
 
-	// Hearing from a valid leader: step down if we were a candidate, and reset
-	// our election timer to prevent a premature election.
+	// Hearing from a valid leader: step down if we were a candidate (or,
+	// defensively, a stale leader in the same term), and reset our election
+	// timer to prevent a premature election.
+	if n.role == Leader {
+		n.closeHeartbeatStop()
+	}
 	n.role = Follower
 	n.resetElectionTimer()
 
@@ -73,6 +77,7 @@ func (n *Node) handleAppendEntries(msg Message) {
 	}
 
 	reply.Success = true
+	reply.MatchIndex = n.lastLogIndex()
 	n.notifyChange()
 	n.send(Message{From: n.id, To: msg.From, Type: MsgAppendEntriesReply, AppendEntriesReply: reply})
 }
@@ -97,14 +102,13 @@ func (n *Node) handleAppendEntriesReply(msg Message) {
 	peer := msg.From
 
 	if reply.Success {
-		// The follower accepted our entries up to sentUpTo[peer], which is the
-		// last log index we included in the AppendEntries that generated this reply.
-		// We use sentUpTo rather than len(n.log) because new entries may have been
-		// appended between when we sent the RPC and when this reply arrived —
-		// those entries haven't been confirmed replicated to this peer yet.
-		confirmed := n.sentUpTo[peer]
-		if confirmed > n.matchIndex[peer] {
-			n.matchIndex[peer] = confirmed
+		// The follower reports its last log index after applying the entries.
+		// Using the reply's MatchIndex (rather than a locally-tracked sentUpTo)
+		// eliminates a race when multiple AppendEntries are in flight to the
+		// same peer: sentUpTo would be overwritten by the later send, inflating
+		// the value seen by the earlier reply's handler.
+		if reply.MatchIndex > n.matchIndex[peer] {
+			n.matchIndex[peer] = reply.MatchIndex
 		}
 		n.nextIndex[peer] = n.matchIndex[peer] + 1
 

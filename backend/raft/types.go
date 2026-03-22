@@ -75,6 +75,12 @@ type AppendEntriesArgs struct {
 type AppendEntriesReply struct {
 	Term    int  // follower's current term, in case the leader is stale
 	Success bool // true iff the follower's consistency check passed
+	// MatchIndex is the follower's last log index after a successful apply.
+	// The leader uses this to update matchIndex[peer] instead of tracking
+	// sentUpTo locally — that approach has a race when multiple AppendEntries
+	// are in flight to the same peer (the later send overwrites sentUpTo,
+	// inflating the value seen by the earlier reply's handler).
+	MatchIndex int
 }
 
 // RPCType identifies which RPC a Message is carrying. Using an enum here
