@@ -12,14 +12,10 @@ import HintCard from './HintCard'
 import styles from './ClusterView.module.css'
 
 // --- Layout -----------------------------------------------------------
-// Positions are computed once for a fixed cluster size. Nodes sit on a
-// circle so the graph looks symmetric regardless of which one is leader.
-// We don't use xyflow's auto-layout because Raft's topology never changes —
-// every node can talk to every other node — so a static layout is cleaner.
 
 const NODE_RADIUS = 160
-const CENTER = { x: 250, y: 220 }
-const NODE_SIZE = 72  // must match NodeCard width/height in CSS
+const CENTER      = { x: 250, y: 220 }
+const NODE_SIZE   = 72
 
 function computePositions(count) {
   return Array.from({ length: count }, (_, i) => {
@@ -32,9 +28,6 @@ function computePositions(count) {
 }
 
 // --- Animated edge ----------------------------------------------------
-// Each edge renders a sliding dot for every in-flight RPC on that link.
-// SVG animateMotion is used rather than a JS animation loop — it runs on
-// the compositor thread and doesn't block React renders.
 
 const MSG_COLORS = {
   RequestVote:        '#253745',
@@ -43,21 +36,23 @@ const MSG_COLORS = {
   AppendEntriesReply: '#C2C8C7',
 }
 
-function AnimatedEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data }) {
+// AnimatedEdge reads inFlight directly from the store so that it can
+// update independently of xyflow's reconciliation. If we passed messages
+// through the edge `data` prop instead, xyflow would re-create the entire
+// edge (and restart animateMotion from zero) every time a new heartbeat
+// arrived — producing the one-frame flicker seen before this fix.
+function AnimatedEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, source, target }) {
+  const from     = Number(source)
+  const to       = Number(target)
+  const messages = useClusterStore(s => s.inFlight.filter(m => m.from === from && m.to === to))
+
   const [edgePath] = getBezierPath({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition })
-  const messages = data?.messages ?? []
 
   return (
     <>
       <BaseEdge id={id} path={edgePath} style={{ stroke: 'var(--border-main)', strokeWidth: 1.5 }} />
       {messages.map((msg, i) => (
-        <circle
-          key={`${msg.from}-${msg.to}-${msg.type}-${i}`}
-          r={3.5}
-          fill={MSG_COLORS[msg.type] ?? '#9BA8AB'}
-        >
-          {/* Stagger start time slightly when multiple messages are in flight
-              on the same link so they don't appear as a single merged dot. */}
+        <circle key={`${from}-${to}-${msg.type}-${i}`} r={3.5} fill={MSG_COLORS[msg.type] ?? '#9BA8AB'}>
           <animateMotion dur="0.6s" begin={`${i * 0.08}s`} fill="freeze" path={edgePath} rotate="auto" />
         </circle>
       ))}
@@ -65,47 +60,37 @@ function AnimatedEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, 
   )
 }
 
-// nodeTypes and edgeTypes must be defined outside the component. If they're
-// defined inline, React creates new object references on every render, which
-// causes xyflow to remount every node and edge — visible as flickering.
+// Defined outside the component so React never sees a new reference and
+// xyflow never remounts node/edge types mid-session.
 const nodeTypes = { raftNode: NodeCard }
 const edgeTypes = { animated: AnimatedEdge }
 
 // --- Main component ---------------------------------------------------
 
 export default function ClusterView() {
-  const storeNodes = useClusterStore(s => s.nodes)
-  const inFlight   = useClusterStore(s => s.inFlight)
+  const nodeCount  = useClusterStore(s => s.nodes.length)
   const selectNode = useClusterStore(s => s.selectNode)
 
-  const positions = useMemo(
-    () => computePositions(storeNodes.length || 5),
-    [storeNodes.length]
-  )
+  const positions = useMemo(() => computePositions(nodeCount || 5), [nodeCount])
 
-  // flowNodes is recomputed on every store update so xyflow always reflects
-  // the latest state. We don't use useNodesState here because that hook
-  // initialises once and never syncs external changes — it's designed for
-  // user-driven drag interactions, not externally-driven state machines.
+  // flowNodes carries only position and id — never live state like role or
+  // term. Those are read directly from the store by NodeCard. This keeps the
+  // xyflow node tree stable across the ~50ms heartbeat updates that would
+  // otherwise cause constant remounting and break click detection.
   const flowNodes = useMemo(() =>
-    storeNodes.map((n, i) => ({
-      id:       String(n.id),
-      type:     'raftNode',
-      position: positions[i] ?? { x: 0, y: 0 },
-      data:     { node: n },
+    Array.from({ length: nodeCount || 5 }, (_, i) => ({
+      id:        String(i),
+      type:      'raftNode',
+      position:  positions[i] ?? { x: 0, y: 0 },
+      data:      { nodeId: i },
       draggable: false,
-      // Do NOT set selectable:false here. In xyflow v12, marking a node
-      // as non-selectable sets pointer-events:none on the wrapper, which
-      // silently swallows ALL click events including onNodeClick.
     })),
-    [storeNodes, positions]
+    [nodeCount, positions]
   )
 
-  // One directed edge per ordered pair so animateMotion dots travel the
-  // right direction. All 20 edges (5×4) are always present; in-flight
-  // messages are attached as data so the edge component can render dots.
+  // Edges are also static — AnimatedEdge subscribes to the store for dots.
   const flowEdges = useMemo(() => {
-    const n = storeNodes.length
+    const n = nodeCount || 5
     const edges = []
     for (let a = 0; a < n; a++) {
       for (let b = 0; b < n; b++) {
@@ -115,13 +100,12 @@ export default function ClusterView() {
           source: String(a),
           target: String(b),
           type:   'animated',
-          data:   { messages: inFlight.filter(m => m.from === a && m.to === b) },
           zIndex: -1,
         })
       }
     }
     return edges
-  }, [storeNodes.length, inFlight])
+  }, [nodeCount])
 
   return (
     <div className={styles.canvas}>
@@ -136,10 +120,6 @@ export default function ClusterView() {
         fitViewOptions={{ padding: 0.25 }}
         nodesDraggable={false}
         nodesConnectable={false}
-        // elementsSelectable is intentionally left at its default (true).
-        // Setting it to false makes xyflow apply pointer-events:none to every
-        // node wrapper, blocking onNodeClick entirely. We suppress xyflow's
-        // selection outline via CSS instead.
         panOnDrag
         zoomOnScroll
         minZoom={0.4}

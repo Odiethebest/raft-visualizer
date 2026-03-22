@@ -2,21 +2,25 @@ import { Handle, Position } from '@xyflow/react'
 import { useClusterStore } from '../store/clusterStore'
 import styles from './NodeCard.module.css'
 
-// NodeCard is the custom xyflow node type for a single Raft participant.
-// It receives node data via the `data` prop (injected by ClusterView) and
-// reads selectedNodeId from the store to apply the selection ring.
+// NodeCard reads live node state directly from the Zustand store rather than
+// from the xyflow `data` prop. This means the component re-renders on store
+// changes independently of xyflow's reconciliation cycle — so heartbeat
+// updates don't cause xyflow to remount the node (which would flicker and
+// break click detection).
 //
-// Handles are rendered invisible — they're required by xyflow for edge
-// routing but we don't want them to look interactive.
-// onClick is intentionally not placed on the inner div here. When both
-// nodesDraggable and elementsSelectable are false, xyflow sets
-// pointer-events:none on the node wrapper, which silently swallows clicks.
-// Selection is handled via onNodeClick on the ReactFlow instance instead.
+// The `data` prop only carries the node id, which never changes for the
+// lifetime of the cluster.
 export default function NodeCard({ data }) {
-  const { node } = data
+  const nodeId = data.nodeId
+
+  const node           = useClusterStore(s => s.nodes.find(n => n.id === nodeId))
   const selectedNodeId = useClusterStore(s => s.selectedNodeId)
 
-  const isSelected = selectedNodeId === node.id
+  // Node data may briefly be undefined during the first render before
+  // the WebSocket delivers the initial snapshot.
+  if (!node) return null
+
+  const isSelected = selectedNodeId === nodeId
 
   function roleClass() {
     if (!node.alive) return styles.dead
@@ -29,8 +33,6 @@ export default function NodeCard({ data }) {
 
   return (
     <>
-      {/* Invisible handles on all four sides so xyflow can route edges from
-          any direction — the visual connection points are not shown. */}
       <Handle type="target" position={Position.Top}    style={{ opacity: 0 }} />
       <Handle type="target" position={Position.Bottom} style={{ opacity: 0 }} />
       <Handle type="target" position={Position.Left}   style={{ opacity: 0 }} />

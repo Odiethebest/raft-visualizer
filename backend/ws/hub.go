@@ -34,9 +34,10 @@ type Envelope struct {
 // FaultPayload is the shape of an incoming FAULT_INJECT message from the
 // frontend. The action field drives which simulator method gets called.
 type FaultPayload struct {
-	Action          string  `json:"action"` // "kill" | "partition" | "heal" | "restart"
+	Action          string  `json:"action"`          // "kill" | "partition" | "heal" | "restart" | "submit"
 	Targets         []int   `json:"targets"`
 	PartitionGroups [][]int `json:"partitionGroups"` // only used for "partition"
+	Command         string  `json:"command"`         // only used for "submit"
 }
 
 // client wraps a single WebSocket connection. Each connected browser tab

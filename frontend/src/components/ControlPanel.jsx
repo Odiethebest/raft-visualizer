@@ -68,16 +68,7 @@ export default function ControlPanel() {
   function submitCmd(e) {
     e.preventDefault()
     if (!cmdText.trim() || !sendFault) return
-    // Commands are submitted as a special "submit" fault action. The backend
-    // routes it to the current leader via SubmitCommand.
-    sendFault('submit', [], [])
-    // The actual command goes in targets for simplicity — we encode it as a
-    // single-item array where the item is the command string. The backend
-    // faultLoop doesn't handle "submit" yet; this is a placeholder until
-    // we add that route.
-    //
-    // For now, just send as the payload the user typed.
-    // TODO: wire up SubmitCommand in the backend's faultLoop
+    sendFault('submit', [], [], cmdText.trim())
     close()
   }
 

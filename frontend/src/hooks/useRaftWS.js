@@ -50,11 +50,16 @@ export function useRaftWS() {
 
     // sendFault is the only command the frontend sends to the server.
     // We wrap it here so callers never touch the WebSocket directly.
-    function sendFault(action, targets, partitionGroups) {
+    function sendFault(action, targets, partitionGroups, command) {
       if (wsRef.current?.readyState !== WebSocket.OPEN) return
       wsRef.current.send(JSON.stringify({
         type: 'FAULT_INJECT',
-        payload: { action, targets: targets ?? [], partitionGroups: partitionGroups ?? [] },
+        payload: {
+          action,
+          targets:         targets         ?? [],
+          partitionGroups: partitionGroups ?? [],
+          command:         command         ?? '',
+        },
       }))
     }
 

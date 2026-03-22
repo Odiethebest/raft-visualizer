@@ -65,6 +65,10 @@ func faultLoop(cluster *simulator.Cluster, hub *ws.Hub) {
 			}
 		case "heal":
 			cluster.Heal()
+		case "submit":
+			if fault.Command != "" {
+				cluster.SubmitCommand(fault.Command)
+			}
 		default:
 			log.Printf("faultLoop: unknown action %q", fault.Action)
 		}
