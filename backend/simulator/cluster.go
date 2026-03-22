@@ -16,6 +16,18 @@ import (
 // the graph doesn't fill up with stale arrows.
 const inFlightTTL = 150 * time.Millisecond
 
+// maxInFlight bounds the number of in-flight RPCs carried in a snapshot.
+// Without a hard cap, a long period with no snapshot emission (no state
+// changes) can accumulate a very large inFlight slice and produce a huge
+// first payload when the next snapshot finally emits.
+const maxInFlight = 256
+
+// snapshotInterval is the minimum time between WebSocket broadcasts. The Raft
+// nodes generate state changes at ~600/s (heartbeats × nodes × replies), but
+// the browser only needs ~20 fps for smooth animation. Without throttling,
+// the frontend drowns in JSON parsing and React re-renders.
+const snapshotInterval = 50 * time.Millisecond
+
 // InFlightMessage is a point-in-time record of an RPC currently in transit.
 // These are included in every ClusterSnapshot so the frontend can draw
 // animated arrows between nodes.
@@ -55,9 +67,19 @@ type Cluster struct {
 	// inFlightTTL are pruned on every snapshot emission.
 	inFlight []InFlightMessage
 
+	// snapshotCh is a size-1 "dirty flag" channel. Node onChange callbacks
+	// do a non-blocking send here instead of calling emitSnapshot directly.
+	// A dedicated goroutine (runSnapshotLoop) drains it and builds/broadcasts
+	// the snapshot off the hot path. This prevents node Run goroutines from
+	// blocking on lock acquisition and JSON serialization, which was causing
+	// a livelock: snapshot emission held node locks long enough to starve
+	// message processing, so election timers always fired before votes could
+	// be collected.
+	snapshotCh chan struct{}
+
 	// onStateChange is called after any node state transition with the full
-	// current cluster snapshot. The callback runs on the originating node's
-	// goroutine, so it should not block.
+	// current cluster snapshot. The callback runs on the snapshot goroutine,
+	// never on a node's Run goroutine.
 	onStateChange func(ClusterSnapshot)
 }
 
@@ -73,6 +95,7 @@ func New(n int, onStateChange func(ClusterSnapshot)) *Cluster {
 		inboxes:       make([]chan raft.Message, n),
 		stopCh:        make(chan struct{}),
 		partitioned:   make(map[[2]int]bool),
+		snapshotCh:    make(chan struct{}, 1),
 		onStateChange: onStateChange,
 	}
 
@@ -94,14 +117,20 @@ func New(n int, onStateChange func(ClusterSnapshot)) *Cluster {
 		}
 
 		changeFn := func(_ raft.Snapshot) {
-			// We ignore the single-node snapshot passed in and instead collect
-			// the full cluster state here, so the frontend always sees a
-			// consistent picture of all nodes at once.
-			c.emitSnapshot()
+			// Signal the snapshot goroutine instead of calling emitSnapshot
+			// directly. This keeps the node's Run goroutine free to process
+			// messages — the previous synchronous call was blocking on lock
+			// acquisition and JSON serialization, starving election vote
+			// delivery and causing a term-increment livelock.
+			c.notifySnapshot()
 		}
 
 		c.nodes[i] = raft.NewNode(id, peers, c.inboxes[i], sendFn, changeFn)
 	}
+
+	// Dedicated goroutine for snapshot emission. Decouples the expensive
+	// buildSnapshot + broadcast work from the node Run goroutines.
+	go c.runSnapshotLoop()
 
 	for _, node := range c.nodes {
 		go node.Run(c.stopCh)
@@ -163,7 +192,7 @@ func (c *Cluster) Partition(groupA, groupB []int) {
 		}
 	}
 	c.mu.Unlock()
-	c.emitSnapshot()
+	c.notifySnapshot()
 }
 
 // Heal removes all active partitions, restoring full connectivity.
@@ -171,7 +200,7 @@ func (c *Cluster) Heal() {
 	c.mu.Lock()
 	c.partitioned = make(map[[2]int]bool)
 	c.mu.Unlock()
-	c.emitSnapshot()
+	c.notifySnapshot()
 }
 
 // Snapshot returns the current cluster state without triggering a callback.
@@ -181,6 +210,39 @@ func (c *Cluster) Snapshot() ClusterSnapshot {
 }
 
 // --- internal ---
+
+// notifySnapshot does a non-blocking send on snapshotCh. Multiple rapid
+// signals collapse into one, just like the node's changeCh pattern.
+func (c *Cluster) notifySnapshot() {
+	select {
+	case c.snapshotCh <- struct{}{}:
+	default:
+	}
+}
+
+// runSnapshotLoop is the single goroutine that builds and broadcasts cluster
+// snapshots. It coalesces rapid state changes into at most one broadcast per
+// snapshotInterval, giving the frontend a steady ~20 fps update rate instead
+// of the raw ~600 changes/second the Raft nodes produce.
+func (c *Cluster) runSnapshotLoop() {
+	ticker := time.NewTicker(snapshotInterval)
+	defer ticker.Stop()
+
+	dirty := false
+	for {
+		select {
+		case <-c.stopCh:
+			return
+		case <-c.snapshotCh:
+			dirty = true
+		case <-ticker.C:
+			if dirty {
+				dirty = false
+				c.emitSnapshot()
+			}
+		}
+	}
+}
 
 // route delivers a message to its destination, or drops it if the link is
 // partitioned. Either way, the message is recorded as in-flight for the TTL
@@ -196,6 +258,7 @@ func (c *Cluster) route(msg raft.Message) {
 		Term:   rpcTerm(msg),
 		sentAt: time.Now(),
 	})
+	c.pruneInFlightLocked(time.Now())
 	c.mu.Unlock()
 
 	if dropped {
@@ -227,16 +290,7 @@ func (c *Cluster) emitSnapshot() {
 // hazard if any node callback tries to acquire c.mu.
 func (c *Cluster) buildSnapshot() ClusterSnapshot {
 	c.mu.Lock()
-	now := time.Now()
-
-	// Prune expired in-flight entries.
-	live := c.inFlight[:0]
-	for _, m := range c.inFlight {
-		if now.Sub(m.sentAt) < inFlightTTL {
-			live = append(live, m)
-		}
-	}
-	c.inFlight = live
+	c.pruneInFlightLocked(time.Now())
 
 	nodes := make([]*raft.Node, len(c.nodes))
 	copy(nodes, c.nodes)
@@ -254,6 +308,22 @@ func (c *Cluster) buildSnapshot() ClusterSnapshot {
 	return ClusterSnapshot{
 		Nodes:    snaps,
 		InFlight: inFlight,
+	}
+}
+
+// pruneInFlightLocked drops expired entries and then enforces a hard tail cap.
+// Caller must hold c.mu.
+func (c *Cluster) pruneInFlightLocked(now time.Time) {
+	live := c.inFlight[:0]
+	for _, m := range c.inFlight {
+		if now.Sub(m.sentAt) < inFlightTTL {
+			live = append(live, m)
+		}
+	}
+	c.inFlight = live
+
+	if len(c.inFlight) > maxInFlight {
+		c.inFlight = c.inFlight[len(c.inFlight)-maxInFlight:]
 	}
 }
 

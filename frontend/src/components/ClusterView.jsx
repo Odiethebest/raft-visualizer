@@ -1,8 +1,9 @@
-import { useMemo } from 'react'
+import { useMemo, useEffect, useRef } from 'react'
 import {
   ReactFlow,
   BaseEdge,
   getBezierPath,
+  useReactFlow,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 
@@ -42,9 +43,13 @@ const MSG_COLORS = {
 // edge (and restart animateMotion from zero) every time a new heartbeat
 // arrived — producing the one-frame flicker seen before this fix.
 function AnimatedEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, source, target }) {
-  const from     = Number(source)
-  const to       = Number(target)
-  const messages = useClusterStore(s => s.inFlight.filter(m => m.from === from && m.to === to))
+  const from = Number(source)
+  const to = Number(target)
+  const inFlight = useClusterStore(s => s.inFlight)
+  const messages = useMemo(
+    () => inFlight.filter(m => m.from === from && m.to === to),
+    [inFlight, from, to]
+  )
 
   const [edgePath] = getBezierPath({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition })
 
@@ -65,35 +70,55 @@ function AnimatedEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, 
 const nodeTypes = { raftNode: NodeCard }
 const edgeTypes = { animated: AnimatedEdge }
 
+// Calls fitView once when nodes first become available, after a brief delay
+// so ReactFlow has time to measure node dimensions via ResizeObserver.
+// Must be a direct child of <ReactFlow> to access the ReactFlow context.
+function FitViewOnLoad({ nodeCount }) {
+  const { fitView } = useReactFlow()
+  const fitted = useRef(false)
+
+  useEffect(() => {
+    if (nodeCount > 0 && !fitted.current) {
+      fitted.current = true
+      const id = setTimeout(() => fitView({ padding: 0.25 }), 50)
+      return () => clearTimeout(id)
+    }
+  }, [nodeCount, fitView])
+
+  return null
+}
+
 // --- Main component ---------------------------------------------------
 
 export default function ClusterView() {
-  const nodeCount  = useClusterStore(s => s.nodes.length)
+  const nodes      = useClusterStore(s => s.nodes)
   const selectNode = useClusterStore(s => s.selectNode)
 
-  const positions = useMemo(() => computePositions(nodeCount || 5), [nodeCount])
+  const nodeCount = nodes.length
+  const positions = useMemo(() => computePositions(nodeCount), [nodeCount])
 
-  // flowNodes carries only position and id — never live state like role or
-  // term. Those are read directly from the store by NodeCard. This keeps the
-  // xyflow node tree stable across the ~50ms heartbeat updates that would
-  // otherwise cause constant remounting and break click detection.
+  // flowNodes is derived directly from the store's nodes array — no
+  // placeholder nodes. An empty array before data arrives means ReactFlow
+  // starts with a clean canvas, and NodeCard never receives a null node.
+  // When data arrives, all nodes appear at once with real state.
   const flowNodes = useMemo(() =>
-    Array.from({ length: nodeCount || 5 }, (_, i) => ({
+    nodes.map((node, i) => ({
       id:        String(i),
       type:      'raftNode',
       position:  positions[i] ?? { x: 0, y: 0 },
-      data:      { nodeId: i },
+      data:      { node },
       draggable: false,
     })),
-    [nodeCount, positions]
+    [nodes, positions]
   )
 
-  // Edges are also static — AnimatedEdge subscribes to the store for dots.
+  // Edges are static in shape — AnimatedEdge subscribes to the store for
+  // the in-flight message dots so the edge component itself never remounts.
   const flowEdges = useMemo(() => {
-    const n = nodeCount || 5
+    if (nodeCount === 0) return []
     const edges = []
-    for (let a = 0; a < n; a++) {
-      for (let b = 0; b < n; b++) {
+    for (let a = 0; a < nodeCount; a++) {
+      for (let b = 0; b < nodeCount; b++) {
         if (a === b) continue
         edges.push({
           id:     `e${a}-${b}`,
@@ -116,8 +141,6 @@ export default function ClusterView() {
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         onNodeClick={(_, flowNode) => selectNode(Number(flowNode.id))}
-        fitView
-        fitViewOptions={{ padding: 0.25 }}
         nodesDraggable={false}
         nodesConnectable={false}
         panOnDrag
@@ -125,7 +148,9 @@ export default function ClusterView() {
         minZoom={0.4}
         maxZoom={2}
         proOptions={{ hideAttribution: true }}
-      />
+      >
+        <FitViewOnLoad nodeCount={nodeCount} />
+      </ReactFlow>
     </div>
   )
 }

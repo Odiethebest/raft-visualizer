@@ -1,5 +1,10 @@
 import { create } from 'zustand'
 
+// Monotonic counter for event IDs. Using an index as a React key breaks when
+// events are prepended (all indices shift, so React reconciles against the
+// wrong elements). A stable ID avoids that.
+let nextEventId = 0
+
 // deriveEvents compares two node snapshots and emits human-readable event
 // strings for any meaningful transitions. We intentionally skip minor churn
 // (e.g. repeated heartbeat acks) and only surface role changes, term bumps,
@@ -14,19 +19,19 @@ function deriveEvents(prevNodes, nextNodes) {
 
     if (prev.role !== next.role) {
       const level = next.role === 'leader' ? 'active' : 'normal'
-      events.push({ time: now, message: `node ${next.id} became ${next.role} (term ${next.term})`, level })
+      events.push({ id: nextEventId++, time: now, message: `node ${next.id} became ${next.role} (term ${next.term})`, level })
     } else if (prev.term !== next.term) {
-      events.push({ time: now, message: `node ${next.id} term → ${next.term}`, level: 'normal' })
+      events.push({ id: nextEventId++, time: now, message: `node ${next.id} term → ${next.term}`, level: 'normal' })
     }
 
     if (prev.alive && !next.alive) {
-      events.push({ time: now, message: `node ${next.id} killed`, level: 'warn' })
+      events.push({ id: nextEventId++, time: now, message: `node ${next.id} killed`, level: 'warn' })
     } else if (!prev.alive && next.alive) {
-      events.push({ time: now, message: `node ${next.id} restarted`, level: 'normal' })
+      events.push({ id: nextEventId++, time: now, message: `node ${next.id} restarted`, level: 'normal' })
     }
 
     if (next.commitIndex > prev.commitIndex) {
-      events.push({ time: now, message: `node ${next.id} committed → ${next.commitIndex}`, level: 'normal' })
+      events.push({ id: nextEventId++, time: now, message: `node ${next.id} committed → ${next.commitIndex}`, level: 'normal' })
     }
   }
 
@@ -47,7 +52,10 @@ export const useClusterStore = create((set, get) => ({
   sendFault: null,
 
   applyStateUpdate(payload) {
-    const { nodes: raw, inFlight } = payload
+    const raw = Array.isArray(payload?.nodes) ? payload.nodes : []
+    const inFlight = Array.isArray(payload?.inFlight)
+      ? payload.inFlight.slice(-256)
+      : []
     const prev = get().nodes
 
     // Annotate each log entry with its committed status. The backend sends

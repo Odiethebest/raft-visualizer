@@ -84,7 +84,14 @@ func readPump(c *client, hub *Hub) {
 	for {
 		_, data, err := c.conn.ReadMessage()
 		if err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+			// Browsers often close without a status code (1005) on refresh/navigation.
+			// Treat common client disconnect paths as expected to avoid noisy logs.
+			if websocket.IsUnexpectedCloseError(
+				err,
+				websocket.CloseNormalClosure,
+				websocket.CloseGoingAway,
+				websocket.CloseNoStatusReceived,
+			) {
 				log.Printf("ws: unexpected close: %v", err)
 			}
 			return
