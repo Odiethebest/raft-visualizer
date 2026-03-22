@@ -64,6 +64,16 @@ type Node struct {
 	// inside the Run loop; no other goroutine touches it.
 	electionTimer *time.Timer
 
+	// changeCh is a size-1 "dirty flag" channel. Any state mutation calls
+	// notifyChange(), which does a non-blocking send here. The Run loop drains
+	// it and fires onChange from outside any lock, so the callback can safely
+	// call Snapshot() or do I/O without risking a deadlock.
+	//
+	// Using a channel of size 1 (not larger) is intentional: multiple rapid
+	// state changes collapse into a single notification, and the Run loop
+	// always picks up the latest snapshot when it fires.
+	changeCh chan struct{}
+
 	// Inbox is the receive end of this node's message channel. The simulator
 	// writes to the corresponding send end; this node only reads from it.
 	Inbox <-chan Message
@@ -75,7 +85,8 @@ type Node struct {
 
 	// onChange is called by the Run goroutine after any state transition that
 	// the UI should know about. The simulator registers a callback here to
-	// aggregate snapshots and push them over WebSocket.
+	// aggregate snapshots and push them over WebSocket. It is always invoked
+	// from outside any lock.
 	onChange func(Snapshot)
 }
 
@@ -90,6 +101,7 @@ func NewNode(id int, peers []int, inbox <-chan Message, sendFn func(Message), on
 		log:      []LogEntry{},
 		role:     Follower,
 		alive:    true,
+		changeCh: make(chan struct{}, 1),
 		Inbox:    inbox,
 		send:     sendFn,
 		onChange: onChangeFn,
@@ -126,6 +138,14 @@ func (n *Node) Run(stopCh <-chan struct{}) {
 			// No heartbeat arrived before the timer fired — assume the leader
 			// is gone (or this is the first boot) and start an election.
 			n.startElection()
+
+		case <-n.changeCh:
+			// A state mutation signaled that the UI should be updated.
+			// We fire the callback here — outside any lock — so it can safely
+			// call Snapshot() or do I/O without deadlocking.
+			if n.onChange != nil {
+				n.onChange(n.Snapshot())
+			}
 		}
 	}
 }
@@ -149,6 +169,7 @@ func (n *Node) handleMessage(msg Message) {
 // If so, we immediately revert to follower — regardless of our current role.
 // This is called at the top of every RPC handler because Raft guarantees that
 // any server with a higher term is more authoritative than us.
+// Caller must hold n.mu.
 func (n *Node) maybeStepDown(incomingTerm int) {
 	if incomingTerm > n.currentTerm {
 		n.currentTerm = incomingTerm
@@ -158,8 +179,8 @@ func (n *Node) maybeStepDown(incomingTerm int) {
 	}
 }
 
-// becomeLeader initializes leader-specific volatile state and starts sending
-// heartbeats. Called only after winning an election (majority votes received).
+// becomeLeader initializes leader-specific volatile state and fires the first
+// round of heartbeats. Must be called with n.mu held.
 func (n *Node) becomeLeader() {
 	n.role = Leader
 	n.nextIndex = make(map[int]int)
@@ -176,7 +197,10 @@ func (n *Node) becomeLeader() {
 	}
 
 	n.notifyChange()
-	n.sendHeartbeats()
+	// Send the first round of heartbeats immediately, while we still hold mu.
+	// Subsequent heartbeats come from runHeartbeatLoop (a separate goroutine
+	// that acquires its own lock each tick).
+	n.sendHeartbeatsLocked()
 	go n.runHeartbeatLoop()
 }
 
@@ -192,22 +216,20 @@ func (n *Node) runHeartbeatLoop() {
 	for range ticker.C {
 		n.mu.Lock()
 		isLeader := n.role == Leader && n.alive
+		if isLeader {
+			n.sendHeartbeatsLocked()
+		}
 		n.mu.Unlock()
 
 		if !isLeader {
 			return
 		}
-		n.sendHeartbeats()
 	}
 }
 
-// sendHeartbeats sends an AppendEntries to every peer. If we have log entries
-// the peer hasn't seen yet, they'll be included; otherwise this is an empty
-// heartbeat whose only job is to reset the peer's election timer.
-func (n *Node) sendHeartbeats() {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-
+// sendHeartbeatsLocked sends an AppendEntries to every peer.
+// Caller must hold n.mu.
+func (n *Node) sendHeartbeatsLocked() {
 	if n.role != Leader {
 		return
 	}
@@ -217,6 +239,8 @@ func (n *Node) sendHeartbeats() {
 }
 
 // sendAppendEntries constructs and sends an AppendEntries RPC to one peer.
+// If we have log entries the peer hasn't seen yet, they're included; otherwise
+// this is an empty heartbeat whose only job is to reset the peer's election timer.
 // Caller must hold n.mu.
 func (n *Node) sendAppendEntries(peer int) {
 	next := n.nextIndex[peer]
@@ -379,27 +403,13 @@ func (n *Node) resetElectionTimer() {
 	n.electionTimer.Reset(n.randomElectionTimeout())
 }
 
-// notifyChange builds a snapshot and fires the onChange callback.
-// Caller must hold n.mu.
+// notifyChange signals the Run loop that state has changed.
+// It does a non-blocking send on changeCh — if the channel already has a
+// pending signal, we skip it, since the Run loop will pick up the latest
+// snapshot anyway when it drains. Safe to call with mu held.
 func (n *Node) notifyChange() {
-	if n.onChange == nil {
-		return
+	select {
+	case n.changeCh <- struct{}{}:
+	default:
 	}
-	logCopy := make([]LogEntry, len(n.log))
-	copy(logCopy, n.log)
-	snap := Snapshot{
-		ID:          n.id,
-		Role:        n.role.String(),
-		Term:        n.currentTerm,
-		Alive:       n.alive,
-		VotedFor:    n.votedFor,
-		CommitIndex: n.commitIndex,
-		LastApplied: n.lastApplied,
-		Log:         logCopy,
-	}
-	// Call onChange without holding mu — the callback may do I/O or acquire
-	// other locks. We've already captured the snapshot above.
-	n.mu.Unlock()
-	n.onChange(snap)
-	n.mu.Lock()
 }

@@ -96,9 +96,9 @@ func (n *Node) handleRequestVoteReply(msg Message) {
 	majority := clusterSize/2 + 1
 
 	if len(n.votesReceived) >= majority {
-		n.mu.Unlock()
+		// becomeLeader expects mu to be held — the defer at the top of this
+		// function takes care of the final unlock.
 		n.becomeLeader()
-		n.mu.Lock()
 	}
 }
 
