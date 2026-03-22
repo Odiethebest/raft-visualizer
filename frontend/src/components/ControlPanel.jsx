@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useClusterStore } from '../store/clusterStore'
+import { controlCopy } from '../i18n/uiText'
 import styles from './ControlPanel.module.css'
 
 // ControlPanel floats at the bottom of the canvas. Each fault action opens
@@ -10,12 +11,21 @@ import styles from './ControlPanel.module.css'
 export default function ControlPanel() {
   const nodes     = useClusterStore(s => s.nodes)
   const sendFault = useClusterStore(s => s.sendFault)
+  const lang      = useClusterStore(s => s.lang)
+  const text      = controlCopy(lang)
 
   const [mode, setMode]   = useState(null)  // 'kill' | 'restart' | 'partition' | 'cmd'
   const [groupA, setGroupA] = useState([])  // for partition: first group
   const [groupB, setGroupB] = useState([])  // for partition: second group
   const [cmdText, setCmdText] = useState('')
   const inputRef = useRef(null)
+
+  function close() {
+    setMode(null)
+    setGroupA([])
+    setGroupB([])
+    setCmdText('')
+  }
 
   // Close the picker when the user clicks outside of it
   const barRef = useRef(null)
@@ -32,30 +42,14 @@ export default function ControlPanel() {
     if (mode === 'cmd') inputRef.current?.focus()
   }, [mode])
 
-  function close() {
-    setMode(null)
-    setGroupA([])
-    setGroupB([])
-    setCmdText('')
-  }
-
-  function toggle(id) {
-    setMode(prev => {
-      if (prev !== 'kill' && prev !== 'restart') return prev
-      // For kill/restart: selecting a node fires immediately
-      if (!sendFault) return prev
-      sendFault(prev, [id])
-      close()
-      return null
-    })
-  }
-
   function togglePartitionA(id) {
     setGroupA(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+    setGroupB(prev => prev.filter(x => x !== id))
   }
 
   function togglePartitionB(id) {
     setGroupB(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+    setGroupA(prev => prev.filter(x => x !== id))
   }
 
   function confirmPartition() {
@@ -77,19 +71,21 @@ export default function ControlPanel() {
       {/* Inline picker renders above the bar */}
       {mode === 'kill' && (
         <NodePicker
-          label="select node to kill"
+          label={text.pickKill}
           nodes={nodes}
           onSelect={id => { sendFault?.('kill', [id]); close() }}
           onCancel={close}
+          cancelLabel={text.cancel}
         />
       )}
       {mode === 'restart' && (
         <NodePicker
-          label="select node to restart"
+          label={text.pickRestart}
           nodes={nodes}
           deadOnly
           onSelect={id => { sendFault?.('restart', [id]); close() }}
           onCancel={close}
+          cancelLabel={text.cancel}
         />
       )}
       {mode === 'partition' && (
@@ -101,42 +97,46 @@ export default function ControlPanel() {
           onToggleB={togglePartitionB}
           onConfirm={confirmPartition}
           onCancel={close}
+          groupALabel={text.groupA}
+          groupBLabel={text.groupB}
+          cancelLabel={text.cancel}
+          confirmLabel={text.confirmPartition}
         />
       )}
       {mode === 'cmd' && (
         <div className={styles.picker}>
-          <div className={styles.pickerLabel}>submit command to leader</div>
+          <div className={styles.pickerLabel}>{text.submitToLeader}</div>
           <form className={styles.inputRow} onSubmit={submitCmd}>
             <input
               ref={inputRef}
               className={styles.cmdInput}
-              placeholder="set x=1"
+              placeholder={text.cmdPlaceholder}
               value={cmdText}
               onChange={e => setCmdText(e.target.value)}
             />
             <button type="submit" className={styles.pickerConfirm} disabled={!cmdText.trim()}>
-              send
+              {text.send}
             </button>
           </form>
         </div>
       )}
 
       <button className={styles.btn} onClick={() => setMode(m => m === 'cmd' ? null : 'cmd')}>
-        submit cmd
+        {text.submitCmd}
       </button>
       <div className={styles.divider} />
       <button className={`${styles.btn} ${styles.btnKill}`} onClick={() => setMode(m => m === 'kill' ? null : 'kill')}>
-        kill node
+        {text.killNode}
       </button>
       <button className={styles.btn} onClick={() => setMode(m => m === 'restart' ? null : 'restart')}>
-        restart
+        {text.restart}
       </button>
       <div className={styles.divider} />
       <button className={styles.btn} onClick={() => setMode(m => m === 'partition' ? null : 'partition')}>
-        partition
+        {text.partition}
       </button>
       <button className={styles.btn} onClick={() => { sendFault?.('heal'); close() }}>
-        heal
+        {text.heal}
       </button>
     </div>
   )
@@ -144,9 +144,7 @@ export default function ControlPanel() {
 
 // NodePicker shows all nodes as small circles. Clicking one fires onSelect
 // immediately — no confirmation step needed for single-node actions.
-function NodePicker({ label, nodes, deadOnly, onSelect, onCancel }) {
-  const selectable = deadOnly ? nodes.filter(n => !n.alive) : nodes
-
+function NodePicker({ label, nodes, deadOnly, onSelect, onCancel, cancelLabel }) {
   return (
     <div className={styles.picker}>
       <div className={styles.pickerLabel}>{label}</div>
@@ -166,7 +164,7 @@ function NodePicker({ label, nodes, deadOnly, onSelect, onCancel }) {
         })}
       </div>
       <div className={styles.pickerActions}>
-        <button className={styles.pickerCancel} onClick={onCancel}>cancel</button>
+        <button className={styles.pickerCancel} onClick={onCancel}>{cancelLabel}</button>
       </div>
     </div>
   )
@@ -174,10 +172,22 @@ function NodePicker({ label, nodes, deadOnly, onSelect, onCancel }) {
 
 // PartitionPicker lets the user assemble two groups. A node can only be in
 // one group at a time — clicking it in group A removes it before adding to B.
-function PartitionPicker({ nodes, groupA, groupB, onToggleA, onToggleB, onConfirm, onCancel }) {
+function PartitionPicker({
+  nodes,
+  groupA,
+  groupB,
+  onToggleA,
+  onToggleB,
+  onConfirm,
+  onCancel,
+  groupALabel,
+  groupBLabel,
+  cancelLabel,
+  confirmLabel,
+}) {
   return (
     <div className={styles.picker}>
-      <div className={styles.pickerLabel}>group A</div>
+      <div className={styles.pickerLabel}>{groupALabel}</div>
       <div className={styles.nodeRow}>
         {nodes.map(n => (
           <button
@@ -189,7 +199,7 @@ function PartitionPicker({ nodes, groupA, groupB, onToggleA, onToggleB, onConfir
           </button>
         ))}
       </div>
-      <div className={styles.pickerLabel} style={{ marginTop: 4 }}>group B</div>
+      <div className={styles.pickerLabel} style={{ marginTop: 4 }}>{groupBLabel}</div>
       <div className={styles.nodeRow}>
         {nodes.map(n => (
           <button
@@ -202,13 +212,13 @@ function PartitionPicker({ nodes, groupA, groupB, onToggleA, onToggleB, onConfir
         ))}
       </div>
       <div className={styles.pickerActions}>
-        <button className={styles.pickerCancel} onClick={onCancel}>cancel</button>
+        <button className={styles.pickerCancel} onClick={onCancel}>{cancelLabel}</button>
         <button
           className={styles.pickerConfirm}
           onClick={onConfirm}
           disabled={!groupA.length || !groupB.length}
         >
-          partition
+          {confirmLabel}
         </button>
       </div>
     </div>

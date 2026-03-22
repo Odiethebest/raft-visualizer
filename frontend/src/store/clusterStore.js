@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 
+const LANG_STORAGE_KEY = 'raft-ui-lang'
+
 // Monotonic counter for event IDs. Using an index as a React key breaks when
 // events are prepended (all indices shift, so React reconciles against the
 // wrong elements). A stable ID avoids that.
@@ -19,19 +21,53 @@ function deriveEvents(prevNodes, nextNodes) {
 
     if (prev.role !== next.role) {
       const level = next.role === 'leader' ? 'active' : 'normal'
-      events.push({ id: nextEventId++, time: now, message: `node ${next.id} became ${next.role} (term ${next.term})`, level })
+      events.push({
+        id: nextEventId++,
+        time: now,
+        kind: 'role_changed',
+        nodeId: next.id,
+        role: next.role,
+        term: next.term,
+        level,
+      })
     } else if (prev.term !== next.term) {
-      events.push({ id: nextEventId++, time: now, message: `node ${next.id} term → ${next.term}`, level: 'normal' })
+      events.push({
+        id: nextEventId++,
+        time: now,
+        kind: 'term_changed',
+        nodeId: next.id,
+        term: next.term,
+        level: 'normal',
+      })
     }
 
     if (prev.alive && !next.alive) {
-      events.push({ id: nextEventId++, time: now, message: `node ${next.id} killed`, level: 'warn' })
+      events.push({
+        id: nextEventId++,
+        time: now,
+        kind: 'node_killed',
+        nodeId: next.id,
+        level: 'warn',
+      })
     } else if (!prev.alive && next.alive) {
-      events.push({ id: nextEventId++, time: now, message: `node ${next.id} restarted`, level: 'normal' })
+      events.push({
+        id: nextEventId++,
+        time: now,
+        kind: 'node_restarted',
+        nodeId: next.id,
+        level: 'normal',
+      })
     }
 
     if (next.commitIndex > prev.commitIndex) {
-      events.push({ id: nextEventId++, time: now, message: `node ${next.id} committed → ${next.commitIndex}`, level: 'normal' })
+      events.push({
+        id: nextEventId++,
+        time: now,
+        kind: 'commit_advanced',
+        nodeId: next.id,
+        commitIndex: next.commitIndex,
+        level: 'normal',
+      })
     }
   }
 
@@ -46,6 +82,7 @@ export const useClusterStore = create((set, get) => ({
   events: [],
   selectedNodeId: null,
   wsStatus: 'connecting', // 'connecting' | 'connected' | 'reconnecting'
+  lang: localStorage.getItem(LANG_STORAGE_KEY) === 'en' ? 'en' : 'zh',
 
   // Injected by useRaftWS so any component can fire fault commands without
   // knowing about the WebSocket directly.
@@ -79,9 +116,19 @@ export const useClusterStore = create((set, get) => ({
   },
 
   selectNode(id) {
-    set(state => ({
-      selectedNodeId: state.selectedNodeId === id ? null : id,
-    }))
+    set({ selectedNodeId: id })
+  },
+
+  setLang(lang) {
+    const nextLang = lang === 'en' ? 'en' : 'zh'
+    localStorage.setItem(LANG_STORAGE_KEY, nextLang)
+    set({ lang: nextLang })
+  },
+
+  toggleLang() {
+    const nextLang = get().lang === 'en' ? 'zh' : 'en'
+    localStorage.setItem(LANG_STORAGE_KEY, nextLang)
+    set({ lang: nextLang })
   },
 
   setWsStatus(status) { set({ wsStatus: status }) },

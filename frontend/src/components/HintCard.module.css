@@ -2,7 +2,9 @@
   position: absolute;
   top: 16px;
   right: 16px;
-  width: 210px;
+  width: 300px;
+  max-height: calc(100% - 32px);
+  overflow-y: auto;
   background: var(--bg-panel);
   border: 1px solid var(--border-main);
   border-radius: var(--radius-md);
@@ -98,4 +100,67 @@
   color: var(--text-aux);
   flex-shrink: 0;
   min-width: 10px;
+}
+
+.section {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-inner);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sectionTitle {
+  font-size: 10px;
+  letter-spacing: 0.4px;
+  color: var(--text-aux);
+  text-transform: uppercase;
+}
+
+.line {
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.line code {
+  font-size: 10px;
+}
+
+.cmdList {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.cmdRow {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.cmdRow code {
+  font-size: 10px;
+  color: var(--text-primary);
+  background: var(--bg-canvas);
+  border: 1px solid var(--border-inner);
+  border-radius: 4px;
+  padding: 2px 5px;
+  width: fit-content;
+}
+
+.cmdRow span {
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.raftList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--text-secondary);
 }

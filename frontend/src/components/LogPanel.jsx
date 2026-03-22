@@ -1,4 +1,5 @@
 import { useClusterStore } from '../store/clusterStore'
+import { deadLabel, logCopy, roleLabel } from '../i18n/uiText'
 import styles from './LogPanel.module.css'
 
 // LogPanel shows per-node stats and log entries for the selected node.
@@ -9,6 +10,7 @@ import styles from './LogPanel.module.css'
 export default function LogPanel() {
   const nodes          = useClusterStore(s => s.nodes)
   const selectedNodeId = useClusterStore(s => s.selectedNodeId)
+  const lang           = useClusterStore(s => s.lang)
 
   // Coerce both sides to number — the store id comes from JSON (number),
   // and selectedNodeId is set via Number(flowNode.id), but an extra guard
@@ -17,13 +19,15 @@ export default function LogPanel() {
 
   return (
     <div className={styles.panel}>
-      <NodeStats node={node} />
-      <LogEntries node={node} />
+      <NodeStats node={node} lang={lang} />
+      <LogEntries node={node} lang={lang} />
     </div>
   )
 }
 
-function NodeStats({ node }) {
+function NodeStats({ node, lang }) {
+  const text = logCopy(lang)
+
   function roleClass(role, alive) {
     if (!alive) return styles.dead
     return styles[role] ?? ''
@@ -31,25 +35,25 @@ function NodeStats({ node }) {
 
   return (
     <>
-      <div className={styles.sectionTitle}>node stats</div>
+      <div className={styles.sectionTitle}>{text.nodeStats}</div>
       {node ? (
         <div className={styles.statGrid}>
           <div className={styles.statCell}>
-            <span className={styles.statLabel}>role</span>
+            <span className={styles.statLabel}>{text.role}</span>
             <span className={`${styles.statValue} ${roleClass(node.role, node.alive)}`}>
-              {node.alive ? node.role : 'dead'}
+              {node.alive ? roleLabel(node.role, lang) : deadLabel(lang)}
             </span>
           </div>
           <div className={styles.statCell}>
-            <span className={styles.statLabel}>term</span>
+            <span className={styles.statLabel}>{text.term}</span>
             <span className={styles.statValue}>{node.term}</span>
           </div>
           <div className={styles.statCell}>
-            <span className={styles.statLabel}>commit</span>
+            <span className={styles.statLabel}>{text.commit}</span>
             <span className={styles.statValue}>{node.commitIndex}</span>
           </div>
           <div className={styles.statCell}>
-            <span className={styles.statLabel}>voted for</span>
+            <span className={styles.statLabel}>{text.votedFor}</span>
             <span className={styles.statValue}>
               {node.votedFor === -1 ? '—' : node.votedFor}
             </span>
@@ -57,21 +61,23 @@ function NodeStats({ node }) {
         </div>
       ) : (
         <div className={styles.placeholder}>
-          click a node to inspect its state
+          {text.clickNode}
         </div>
       )}
     </>
   )
 }
 
-function LogEntries({ node }) {
+function LogEntries({ node, lang }) {
+  const text = logCopy(lang)
+
   return (
     <div className={styles.section}>
-      <div className={styles.sectionTitle}>log entries</div>
+      <div className={styles.sectionTitle}>{text.logEntries}</div>
       {!node ? (
         <div className={styles.empty}>—</div>
       ) : node.log.length === 0 ? (
-        <div className={styles.empty}>no entries</div>
+        <div className={styles.empty}>{text.noEntries}</div>
       ) : (
         <div className={styles.logList}>
           {/* Newest entry at top so you can see replication progress

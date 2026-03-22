@@ -67,6 +67,22 @@
   font-weight: 500;
 }
 
+.headerActionBtn {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-main);
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+  font-size: 10px;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+}
+
+.headerActionBtn:hover {
+  border-color: var(--text-secondary);
+}
+
 /* WS status pill — green / gray to show connection state at a glance */
 .statusPill {
   display: flex;

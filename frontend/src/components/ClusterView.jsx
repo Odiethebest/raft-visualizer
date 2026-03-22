@@ -37,6 +37,13 @@ const MSG_COLORS = {
   AppendEntriesReply: '#C2C8C7',
 }
 
+const MSG_DURATION = {
+  RequestVote:        '1.4s',
+  RequestVoteReply:   '1.2s',
+  AppendEntries:      '2.1s',
+  AppendEntriesReply: '1.7s',
+}
+
 // AnimatedEdge reads inFlight directly from the store so that it can
 // update independently of xyflow's reconciliation. If we passed messages
 // through the edge `data` prop instead, xyflow would re-create the entire
@@ -47,7 +54,7 @@ function AnimatedEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, 
   const to = Number(target)
   const inFlight = useClusterStore(s => s.inFlight)
   const messages = useMemo(
-    () => inFlight.filter(m => m.from === from && m.to === to),
+    () => inFlight.filter(m => m.from === from && m.to === to).slice(-1),
     [inFlight, from, to]
   )
 
@@ -58,7 +65,13 @@ function AnimatedEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, 
       <BaseEdge id={id} path={edgePath} style={{ stroke: 'var(--border-main)', strokeWidth: 1.5 }} />
       {messages.map((msg, i) => (
         <circle key={`${from}-${to}-${msg.type}-${i}`} r={3.5} fill={MSG_COLORS[msg.type] ?? '#9BA8AB'}>
-          <animateMotion dur="0.6s" begin={`${i * 0.08}s`} fill="freeze" path={edgePath} rotate="auto" />
+          <animateMotion
+            dur={MSG_DURATION[msg.type] ?? '1.8s'}
+            begin={`${i * 0.24}s`}
+            fill="freeze"
+            path={edgePath}
+            rotate="auto"
+          />
         </circle>
       ))}
     </>
@@ -103,7 +116,7 @@ export default function ClusterView() {
   // When data arrives, all nodes appear at once with real state.
   const flowNodes = useMemo(() =>
     nodes.map((node, i) => ({
-      id:        String(i),
+      id:        String(node.id),
       type:      'raftNode',
       position:  positions[i] ?? { x: 0, y: 0 },
       data:      { node },
@@ -122,15 +135,15 @@ export default function ClusterView() {
         if (a === b) continue
         edges.push({
           id:     `e${a}-${b}`,
-          source: String(a),
-          target: String(b),
+          source: String(nodes[a].id),
+          target: String(nodes[b].id),
           type:   'animated',
           zIndex: -1,
         })
       }
     }
     return edges
-  }, [nodeCount])
+  }, [nodeCount, nodes])
 
   return (
     <div className={styles.canvas}>
@@ -141,6 +154,7 @@ export default function ClusterView() {
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         onNodeClick={(_, flowNode) => selectNode(Number(flowNode.id))}
+        onPaneClick={() => selectNode(null)}
         nodesDraggable={false}
         nodesConnectable={false}
         panOnDrag
