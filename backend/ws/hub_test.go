@@ -150,6 +150,51 @@ func TestClientDisconnectCleansUp(t *testing.T) {
 	}
 }
 
+func TestClientLifecycleHooks(t *testing.T) {
+	hub := NewHub()
+
+	var firstCalls, zeroCalls int
+	hub.SetClientHooks(
+		func() { firstCalls++ },
+		func() { zeroCalls++ },
+	)
+
+	c1 := &client{send: make(chan []byte, 1)}
+	c2 := &client{send: make(chan []byte, 1)}
+
+	hub.register(c1)
+	if firstCalls != 1 {
+		t.Fatalf("expected onFirstClient to fire once, got %d", firstCalls)
+	}
+	if got := hub.ActiveClients(); got != 1 {
+		t.Fatalf("active clients = %d, want 1", got)
+	}
+
+	hub.register(c2)
+	if firstCalls != 1 {
+		t.Fatalf("expected onFirstClient to stay at 1, got %d", firstCalls)
+	}
+	if got := hub.ActiveClients(); got != 2 {
+		t.Fatalf("active clients = %d, want 2", got)
+	}
+
+	hub.unregister(c2)
+	if zeroCalls != 0 {
+		t.Fatalf("expected onNoClients not to fire yet, got %d", zeroCalls)
+	}
+	if got := hub.ActiveClients(); got != 1 {
+		t.Fatalf("active clients = %d, want 1", got)
+	}
+
+	hub.unregister(c1)
+	if zeroCalls != 1 {
+		t.Fatalf("expected onNoClients to fire once, got %d", zeroCalls)
+	}
+	if got := hub.ActiveClients(); got != 0 {
+		t.Fatalf("active clients = %d, want 0", got)
+	}
+}
+
 // TestHandlerUpgradesHTTP verifies that a plain HTTP request to the ws
 // endpoint gets a 101 Switching Protocols response (not a 404 or 500).
 func TestHandlerUpgradesHTTP(t *testing.T) {

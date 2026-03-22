@@ -1,16 +1,36 @@
+import { useState } from 'react'
 import { useClusterStore } from './store/clusterStore'
 import { useRaftWS } from './hooks/useRaftWS'
 import ClusterView from './components/ClusterView'
 import LogPanel from './components/LogPanel'
 import EventStream from './components/EventStream'
 import ControlPanel from './components/ControlPanel'
+import IntroLanding from './components/IntroLanding'
 import { HINT_REOPEN_EVENT } from './components/HintCard'
 import { appCopy, wsStatusLabel } from './i18n/uiText'
 import './App.css'
 
 export default function App() {
-  // useRaftWS owns the WebSocket lifecycle. Mounting it here (top of the
-  // tree) means it connects once and stays connected for the app's lifetime.
+  const [started, setStarted] = useState(false)
+  const lang = useClusterStore(s => s.lang)
+  const toggleLang = useClusterStore(s => s.toggleLang)
+
+  if (!started) {
+    return (
+      <IntroLanding
+        lang={lang}
+        onStart={() => setStarted(true)}
+        onToggleLang={toggleLang}
+      />
+    )
+  }
+
+  return <LiveDemoApp />
+}
+
+function LiveDemoApp() {
+  // useRaftWS owns the WebSocket lifecycle. It only mounts after the user
+  // clicks "Start Demo", and unmounts when the page closes.
   useRaftWS()
 
   const nodes    = useClusterStore(s => s.nodes)

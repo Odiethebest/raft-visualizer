@@ -7,11 +7,12 @@ It is designed for **observability and learning**, not production deployment.
 
 ## What This Service Does
 
-- boots a 5-node Raft cluster (`main.go`)
+- lazily boots a 5-node Raft cluster on first active WebSocket client (`main.go`)
 - simulates message routing, partitions, crashes, and restarts (`simulator/`)
 - runs Raft election + replication logic (`raft/`)
 - broadcasts cluster snapshots over WebSocket (`ws/`)
 - accepts fault injection commands from connected clients (`FAULT_INJECT`)
+- stops the cluster when no clients remain (CPU-friendly idle behavior)
 
 ## Runtime Endpoints
 
@@ -29,7 +30,7 @@ Listen address:
 ```text
 main.go
   ├─ ws.NewHub()
-  ├─ simulator.New(clusterSize, onStateChange -> hub.Broadcast)
+  ├─ clusterManager (start-on-first-client, stop-on-last-client)
   ├─ go faultLoop(cluster, hub)
   └─ http handlers: /ws, /health, optional static SPA (/)
 
@@ -148,6 +149,9 @@ go run main.go
 ```
 
 Service starts on `http://localhost:8080`.
+
+The Raft simulation starts when a browser connects to `/ws` and stops when
+all clients disconnect.
 
 ## Testing
 

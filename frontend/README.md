@@ -3,6 +3,7 @@
 This folder contains the React + Vite UI for the Raft simulator backend.
 It renders:
 
+- an intro landing page (waterfall-style Raft primer + Start Demo entry),
 - the live cluster graph (nodes + animated RPC traffic),
 - a right-side inspection panel (node stats + log entries + event stream),
 - a bottom control bar (fault injection + command submission),
@@ -104,9 +105,17 @@ Outgoing fault injection shape (from frontend):
 
 The header includes a language toggle button next to the Guide button.
 
+- default: `en`
 - `zh` mode: intentionally mixed Chinese + English technical terms.
 - `en` mode: pure professional English labels/messages.
 - Language preference is persisted in `localStorage` (`raft-ui-lang`).
+
+## Demo Entry Flow
+
+- First screen: concise intro landing with a waterfall-style Raft walkthrough.
+- Clicking `Start Demo` mounts the live visualizer and opens the WebSocket.
+- Closing the browser tab disconnects WebSocket; backend then stops the active
+  simulation when no clients remain.
 
 ## Guide Card Behavior
 

@@ -34,7 +34,7 @@ type Envelope struct {
 // FaultPayload is the shape of an incoming FAULT_INJECT message from the
 // frontend. The action field drives which simulator method gets called.
 type FaultPayload struct {
-	Action          string  `json:"action"`          // "kill" | "partition" | "heal" | "restart" | "submit"
+	Action          string  `json:"action"` // "kill" | "partition" | "heal" | "restart" | "submit"
 	Targets         []int   `json:"targets"`
 	PartitionGroups [][]int `json:"partitionGroups"` // only used for "partition"
 	Command         string  `json:"command"`         // only used for "submit"
@@ -57,6 +57,12 @@ type Hub struct {
 	mu      sync.Mutex
 	clients map[*client]struct{}
 
+	// Optional lifecycle hooks:
+	// - onFirstClient: fired when client count transitions 0 -> 1
+	// - onNoClients: fired when client count transitions 1 -> 0
+	onFirstClient func()
+	onNoClients   func()
+
 	// FaultCh carries parsed fault payloads from connected clients to the
 	// main loop (or whoever is reading). Buffer of 16 to avoid blocking the
 	// read pump on a slow consumer.
@@ -70,6 +76,22 @@ func NewHub() *Hub {
 		clients: make(map[*client]struct{}),
 		FaultCh: make(chan FaultPayload, 16),
 	}
+}
+
+// SetClientHooks configures optional callbacks for 0->1 and 1->0 client
+// transitions.
+func (h *Hub) SetClientHooks(onFirstClient, onNoClients func()) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.onFirstClient = onFirstClient
+	h.onNoClients = onNoClients
+}
+
+// ActiveClients returns the current number of connected WebSocket clients.
+func (h *Hub) ActiveClients() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return len(h.clients)
 }
 
 // Broadcast serializes payload as a STATE_UPDATE envelope and sends it to
@@ -106,17 +128,30 @@ func (h *Hub) Broadcast(payload any) {
 // register adds a new client to the hub.
 func (h *Hub) register(c *client) {
 	h.mu.Lock()
-	defer h.mu.Unlock()
+	wasEmpty := len(h.clients) == 0
 	h.clients[c] = struct{}{}
+	onFirst := h.onFirstClient
+	h.mu.Unlock()
+
+	if wasEmpty && onFirst != nil {
+		onFirst()
+	}
 }
 
 // unregister removes a client and closes its send channel, which signals
 // the write pump to exit.
 func (h *Hub) unregister(c *client) {
 	h.mu.Lock()
-	defer h.mu.Unlock()
+	onNoClients := h.onNoClients
+	fireNoClients := false
 	if _, ok := h.clients[c]; ok {
 		delete(h.clients, c)
 		close(c.send)
+		fireNoClients = len(h.clients) == 0
+	}
+	h.mu.Unlock()
+
+	if fireNoClients && onNoClients != nil {
+		onNoClients()
 	}
 }

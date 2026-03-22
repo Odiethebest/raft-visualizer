@@ -86,7 +86,8 @@ The container builds frontend + backend, then runs a single Go process that:
 - serves the compiled UI from `STATIC_DIR`,
 - exposes WebSocket at `/ws`,
 - exposes health checks at `/health`,
-- reads cloud port from `PORT`.
+- reads cloud port from `PORT`,
+- starts/stops the Raft cluster based on active WebSocket clients.
 
 Deploy on Render:
 

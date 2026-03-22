@@ -82,7 +82,7 @@ export const useClusterStore = create((set, get) => ({
   events: [],
   selectedNodeId: null,
   wsStatus: 'connecting', // 'connecting' | 'connected' | 'reconnecting'
-  lang: localStorage.getItem(LANG_STORAGE_KEY) === 'en' ? 'en' : 'zh',
+  lang: localStorage.getItem(LANG_STORAGE_KEY) === 'zh' ? 'zh' : 'en',
 
   // Injected by useRaftWS so any component can fire fault commands without
   // knowing about the WebSocket directly.
