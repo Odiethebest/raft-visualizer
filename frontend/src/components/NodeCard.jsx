@@ -8,10 +8,13 @@ import styles from './NodeCard.module.css'
 //
 // Handles are rendered invisible — they're required by xyflow for edge
 // routing but we don't want them to look interactive.
+// onClick is intentionally not placed on the inner div here. When both
+// nodesDraggable and elementsSelectable are false, xyflow sets
+// pointer-events:none on the node wrapper, which silently swallows clicks.
+// Selection is handled via onNodeClick on the ReactFlow instance instead.
 export default function NodeCard({ data }) {
   const { node } = data
   const selectedNodeId = useClusterStore(s => s.selectedNodeId)
-  const selectNode     = useClusterStore(s => s.selectNode)
 
   const isSelected = selectedNodeId === node.id
 
@@ -37,10 +40,7 @@ export default function NodeCard({ data }) {
       <Handle type="source" position={Position.Left}   style={{ opacity: 0 }} />
       <Handle type="source" position={Position.Right}  style={{ opacity: 0 }} />
 
-      <div
-        className={`${styles.node} ${roleClass()} ${isSelected ? styles.selected : ''}`}
-        onClick={() => selectNode(node.id)}
-      >
+      <div className={`${styles.node} ${roleClass()} ${isSelected ? styles.selected : ''}`}>
         <span className={styles.nodeId}>{node.id}</span>
         <span className={styles.nodeMeta}>
           {node.alive ? `t${node.term}` : 'dead'}

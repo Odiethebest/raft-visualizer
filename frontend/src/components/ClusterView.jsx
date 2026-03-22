@@ -76,6 +76,7 @@ const edgeTypes = { animated: AnimatedEdge }
 export default function ClusterView() {
   const storeNodes = useClusterStore(s => s.nodes)
   const inFlight   = useClusterStore(s => s.inFlight)
+  const selectNode = useClusterStore(s => s.selectNode)
 
   const positions = useMemo(
     () => computePositions(storeNodes.length || 5),
@@ -128,6 +129,7 @@ export default function ClusterView() {
         edges={flowEdges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
+        onNodeClick={(_, flowNode) => selectNode(Number(flowNode.id))}
         fitView
         fitViewOptions={{ padding: 0.25 }}
         nodesDraggable={false}
