@@ -10,7 +10,10 @@ export default function LogPanel() {
   const nodes          = useClusterStore(s => s.nodes)
   const selectedNodeId = useClusterStore(s => s.selectedNodeId)
 
-  const node = nodes.find(n => n.id === selectedNodeId)
+  // Coerce both sides to number — the store id comes from JSON (number),
+  // and selectedNodeId is set via Number(flowNode.id), but an extra guard
+  // here prevents a silent mismatch if either side is ever a string.
+  const node = nodes.find(n => Number(n.id) === Number(selectedNodeId))
 
   return (
     <div className={styles.panel}>

@@ -89,12 +89,14 @@ export default function ClusterView() {
   // user-driven drag interactions, not externally-driven state machines.
   const flowNodes = useMemo(() =>
     storeNodes.map((n, i) => ({
-      id:        String(n.id),
-      type:      'raftNode',
-      position:  positions[i] ?? { x: 0, y: 0 },
-      data:      { node: n },
+      id:       String(n.id),
+      type:     'raftNode',
+      position: positions[i] ?? { x: 0, y: 0 },
+      data:     { node: n },
       draggable: false,
-      selectable: false,
+      // Do NOT set selectable:false here. In xyflow v12, marking a node
+      // as non-selectable sets pointer-events:none on the wrapper, which
+      // silently swallows ALL click events including onNodeClick.
     })),
     [storeNodes, positions]
   )
@@ -134,7 +136,10 @@ export default function ClusterView() {
         fitViewOptions={{ padding: 0.25 }}
         nodesDraggable={false}
         nodesConnectable={false}
-        elementsSelectable={false}
+        // elementsSelectable is intentionally left at its default (true).
+        // Setting it to false makes xyflow apply pointer-events:none to every
+        // node wrapper, blocking onNodeClick entirely. We suppress xyflow's
+        // selection outline via CSS instead.
         panOnDrag
         zoomOnScroll
         minZoom={0.4}

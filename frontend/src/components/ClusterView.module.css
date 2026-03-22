@@ -38,3 +38,17 @@
   stroke: var(--border-main);
   stroke-width: 1.5;
 }
+
+/* xyflow adds a blue outline on its "selected" state. We handle selection
+   visually ourselves in NodeCard, so suppress xyflow's default here. */
+.canvas :global(.react-flow__node.selected > *) {
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* Ensure node wrappers always accept pointer events regardless of any
+   xyflow internal state changes. */
+.canvas :global(.react-flow__node) {
+  pointer-events: all;
+  cursor: pointer;
+}
