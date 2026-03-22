@@ -1,5 +1,10 @@
 .canvas {
   flex: 1;
+  /* ReactFlow measures its container via getBoundingClientRect. Without an
+     explicit height the measurement returns 0 and no nodes are rendered,
+     even if the element looks correct in the devtools layout panel. */
+  width: 100%;
+  height: 100%;
   position: relative;
   overflow: hidden;
   /* Dot-grid background — radial-gradient places one dot at each grid
