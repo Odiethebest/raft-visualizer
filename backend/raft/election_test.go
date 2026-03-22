@@ -83,24 +83,34 @@ func TestLeaderReelectionAfterKill(t *testing.T) {
 	}
 }
 
-// TestNoLeaderWithoutQuorum verifies that a partitioned minority cannot elect
-// a leader on its own. With 3 nodes, killing 2 means the survivor can't reach
-// a majority of 2.
+// TestNoLeaderWithoutQuorum verifies that a single surviving node cannot elect
+// itself leader. We kill the current leader plus one follower, leaving a lone
+// survivor that lacks the majority (2 of 3) needed for election.
 func TestNoLeaderWithoutQuorum(t *testing.T) {
 	tc := newTestCluster(t, 3)
 	defer tc.stop()
 
-	tc.waitForLeader(testTimeout)
+	leader := tc.waitForLeader(testTimeout)
+	leaderID := leader.Snapshot().ID
 
-	// Kill two out of three nodes — the survivor has no quorum.
-	tc.nodes[1].Kill()
-	tc.nodes[2].Kill()
+	// Kill the leader and one other node, leaving exactly one survivor.
+	for _, n := range tc.nodes {
+		if n.Snapshot().ID != leaderID {
+			// Kill one follower and the leader — two kills total.
+			n.Kill()
+			leader.Kill()
+			break
+		}
+	}
 
-	// Give the survivor long enough to fire an election timer several times.
-	time.Sleep(600 * time.Millisecond)
+	// Give the survivor long enough to fire several election timeouts.
+	// With 500–800ms timeouts this covers at least 3 full cycles.
+	time.Sleep(2500 * time.Millisecond)
 
-	if tc.nodes[0].IsLeader() {
-		t.Error("node 0 became leader without a quorum — that should not be possible")
+	for _, n := range tc.nodes {
+		if n.IsLeader() {
+			t.Errorf("node %d became leader without a quorum — that should not be possible", n.Snapshot().ID)
+		}
 	}
 }
 
