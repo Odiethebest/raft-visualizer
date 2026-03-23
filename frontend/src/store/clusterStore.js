@@ -113,6 +113,7 @@ export const useClusterStore = create((set, get) => ({
   // Injected by useRaftWS so any component can fire fault commands without
   // knowing about the WebSocket directly.
   sendFault: null,
+  sendClientCommand: null,
 
   applyStateUpdate(payload) {
     const state = get()
@@ -215,6 +216,7 @@ export const useClusterStore = create((set, get) => ({
     set({ activePartitionGroups: [] })
   },
 
-  setWsStatus(status) { set({ wsStatus: status }) },
-  setSendFault(fn)    { set({ sendFault: fn }) },
+  setWsStatus(status)         { set({ wsStatus: status }) },
+  setSendFault(fn)            { set({ sendFault: fn }) },
+  setSendClientCommand(fn)    { set({ sendClientCommand: fn }) },
 }))

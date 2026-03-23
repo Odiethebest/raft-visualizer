@@ -152,7 +152,20 @@ function FitViewOnLoad({ nodeCount }) {
 
 // --- Main component ---------------------------------------------------
 
-export default function ClusterView() {
+function FitViewOnSignal({ signal }) {
+  const { fitView } = useReactFlow()
+  const prevSignal = useRef(signal)
+
+  useEffect(() => {
+    if (signal === prevSignal.current) return
+    prevSignal.current = signal
+    fitView({ padding: 0.2, duration: 200 })
+  }, [signal, fitView])
+
+  return null
+}
+
+export default function ClusterView({ onNodeSelected = null, onPaneTap = null, fitSignal = 0 }) {
   const nodes = useClusterStore(s => s.nodes)
   const selectNode = useClusterStore(s => s.selectNode)
   const actionMode = useClusterStore(s => s.actionMode)
@@ -260,8 +273,10 @@ export default function ClusterView() {
           if (!node) return
           if (handleActionClick(node)) return
           selectNode(Number(flowNode.id))
+          onNodeSelected?.(node)
         }}
         onPaneClick={() => {
+          onPaneTap?.()
           if (actionMode) return
           selectNode(null)
         }}
@@ -274,6 +289,7 @@ export default function ClusterView() {
         proOptions={{ hideAttribution: true }}
       >
         <FitViewOnLoad nodeCount={nodeCount} />
+        <FitViewOnSignal signal={fitSignal} />
       </ReactFlow>
     </div>
   )

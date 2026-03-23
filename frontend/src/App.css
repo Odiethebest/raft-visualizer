@@ -158,3 +158,74 @@
   overflow: hidden;
   flex-shrink: 0;
 }
+
+@media (max-width: 768px) {
+  .mobileHeader {
+    height: 40px;
+    padding: 0 12px;
+  }
+
+  .mobileHeaderLeft {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .mobileHeaderRight {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .mobileHeaderTitle {
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    color: #11212D;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+
+  .mobileHeaderBtn {
+    height: 22px;
+    padding: 0 8px;
+    border: 1px solid #DDE0DF;
+    border-radius: 6px;
+    background: #FFFFFF;
+    color: #4A5C6A;
+    font-size: 9px;
+    letter-spacing: 0.06em;
+  }
+
+  .statusPillCompact {
+    height: 20px;
+    padding: 0 8px;
+    font-size: 9px;
+    letter-spacing: 0.1px;
+  }
+
+  .mobileMain {
+    position: relative;
+    height: calc(100vh - 40px);
+    overflow: hidden;
+  }
+
+  .mobileCanvasArea {
+    --canvas-height: calc(100vh - 40px - 40px);
+    height: var(--canvas-height);
+    width: 100%;
+    position: relative;
+    transition: height 250ms ease;
+  }
+
+  /* In mobile mode, drawer and FAB replace the desktop side panel + bar,
+     preventing duplicate controls in constrained viewport width. */
+  .mobileMain .rightPanel,
+  .mobileMain .bar {
+    display: none;
+  }
+}

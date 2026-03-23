@@ -3,7 +3,7 @@ import { useClusterStore } from '../store/clusterStore'
 import { eventCopy } from '../i18n/uiText'
 import styles from './EventStream.module.css'
 
-export default function EventStream() {
+export default function EventStream({ fill = false }) {
   const events = useClusterStore(s => s.eventLogs)
   const lang = useClusterStore(s => s.lang)
   const text = eventCopy(lang)
@@ -17,7 +17,7 @@ export default function EventStream() {
   }, [events.length])
 
   return (
-    <div className={styles.stream}>
+    <div className={`${styles.stream} ${fill ? styles.fill : ''}`}>
       <div className={styles.title}>{text.title}</div>
       {events.length === 0 ? (
         <div className={styles.empty}>{text.empty}</div>

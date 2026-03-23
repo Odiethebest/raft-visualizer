@@ -6,6 +6,10 @@
   height: 38%;
 }
 
+.fill {
+  height: 100%;
+}
+
 .title {
   font-size: 11px;
   letter-spacing: 0.75px;
@@ -71,4 +75,25 @@
   color: var(--text-hint);
   font-size: 12px;
   text-align: center;
+}
+
+@media (max-width: 768px) {
+  .title {
+    font-size: 10px;
+    padding: 9px 12px 7px;
+  }
+
+  .event {
+    padding: 5px 12px;
+    font-size: 10px;
+  }
+
+  .time {
+    font-size: 9px;
+  }
+
+  .empty {
+    font-size: 11px;
+    padding: 14px 12px;
+  }
 }

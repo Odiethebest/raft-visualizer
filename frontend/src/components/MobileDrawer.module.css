@@ -1,0 +1,171 @@
+@media (max-width: 768px) {
+  .drawer {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 28;
+    background: #FFFFFF;
+    border-top: 1px solid #DDE0DF;
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: height 150ms ease;
+    box-shadow: 0 -3px 12px rgba(17, 33, 45, 0.08);
+  }
+
+  .dragging {
+    transition: none;
+  }
+
+  .handle {
+    height: 40px;
+    border: none;
+    border-bottom: 1px solid #EEF0EF;
+    background: #FFFFFF;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 0 12px;
+    touch-action: none;
+  }
+
+  .handleText {
+    color: #9BA8AB;
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .handleArrow {
+    width: 8px;
+    height: 8px;
+    border-right: 1px solid #9BA8AB;
+    border-bottom: 1px solid #9BA8AB;
+    flex-shrink: 0;
+    transition: transform 150ms ease;
+  }
+
+  .arrowUp {
+    transform: rotate(-135deg);
+  }
+
+  .arrowDown {
+    transform: rotate(45deg);
+  }
+
+  .content {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .tabs {
+    height: 34px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 12px;
+    border-bottom: 1px solid #EEF0EF;
+    overflow-x: auto;
+  }
+
+  .tabBtn {
+    height: 22px;
+    border: 1px solid #DDE0DF;
+    border-radius: 999px;
+    padding: 0 10px;
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    color: #9BA8AB;
+    background: #FFFFFF;
+  }
+
+  .tabBtnActive {
+    background: #11212D;
+    border-color: #11212D;
+    color: #FFFFFF;
+  }
+
+  .tabBody {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .tutorialView {
+    height: 100%;
+    overflow-y: auto;
+    padding: 10px 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+
+  .tutorialTitle {
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    color: #11212D;
+  }
+
+  .tutorialIntro {
+    color: #4A5C6A;
+    font-size: 10px;
+    line-height: 1.55;
+  }
+
+  .tutorialSection {
+    border-top: 1px solid #EEF0EF;
+    padding-top: 8px;
+  }
+
+  .tutorialSectionTitle {
+    font-size: 9px;
+    color: #9BA8AB;
+    letter-spacing: 0.08em;
+    margin-bottom: 6px;
+  }
+
+  .tutorialList {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .tutorialItem {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 7px;
+    align-items: start;
+  }
+
+  .tutorialCmd {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    border: 1px solid #DDE0DF;
+    border-radius: 4px;
+    padding: 2px 5px;
+    background: #F5F6F5;
+    color: #11212D;
+    white-space: nowrap;
+  }
+
+  .tutorialStepNo {
+    color: #9BA8AB;
+    font-size: 9px;
+    min-width: 14px;
+  }
+
+  .tutorialDetail {
+    color: #4A5C6A;
+    font-size: 10px;
+    line-height: 1.55;
+  }
+}

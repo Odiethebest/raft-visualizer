@@ -164,3 +164,11 @@
   line-height: 1.45;
   color: var(--text-secondary);
 }
+
+@media (max-width: 768px) {
+  /* The drawer and FAB already expose the primary actions on mobile,
+     so hiding this large card keeps the canvas tappable. */
+  .card {
+    display: none;
+  }
+}

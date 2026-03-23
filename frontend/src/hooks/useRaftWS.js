@@ -18,6 +18,7 @@ export function useRaftWS() {
   const applyStateUpdate = useClusterStore(s => s.applyStateUpdate)
   const setWsStatus      = useClusterStore(s => s.setWsStatus)
   const setSendFault     = useClusterStore(s => s.setSendFault)
+  const setSendClientCommand = useClusterStore(s => s.setSendClientCommand)
 
   // wsRef holds the live WebSocket instance so the sendFault closure can
   // always reach it without stale-closure issues.
@@ -63,8 +64,8 @@ export function useRaftWS() {
       }
     }
 
-    // sendFault is the only command the frontend sends to the server.
-    // We wrap it here so callers never touch the WebSocket directly.
+    // Wrapping outbound messages here keeps UI components decoupled from the
+    // socket lifecycle and readyState details.
     function sendFault(action, targets, partitionGroups, command) {
       if (wsRef.current?.readyState !== WebSocket.OPEN) return
       wsRef.current.send(JSON.stringify({
@@ -78,7 +79,18 @@ export function useRaftWS() {
       }))
     }
 
+    // Mobile command input writes directly through a dedicated message type so
+    // command submission remains available even when the desktop control bar is hidden.
+    function sendClientCommand(command) {
+      if (wsRef.current?.readyState !== WebSocket.OPEN) return
+      wsRef.current.send(JSON.stringify({
+        type: 'CLIENT_COMMAND',
+        payload: { command: command ?? '' },
+      }))
+    }
+
     setSendFault(sendFault)
+    setSendClientCommand(sendClientCommand)
     connect()
 
     return () => {
@@ -86,6 +98,7 @@ export function useRaftWS() {
       clearTimeout(timerRef.current)
       timerRef.current = null
       setSendFault(null)
+      setSendClientCommand(null)
 
       const ws = wsRef.current
       wsRef.current = null
