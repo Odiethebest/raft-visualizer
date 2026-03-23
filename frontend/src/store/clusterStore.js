@@ -2,116 +2,156 @@ import { create } from 'zustand'
 
 const LANG_STORAGE_KEY = 'raft-ui-lang'
 
-// Monotonic counter for event IDs. Using an index as a React key breaks when
-// events are prepended (all indices shift, so React reconciles against the
-// wrong elements). A stable ID avoids that.
 let nextEventId = 0
+let nextPulseSeq = 1
 
-// deriveEvents compares two node snapshots and emits human-readable event
-// strings for any meaningful transitions. We intentionally skip minor churn
-// (e.g. repeated heartbeat acks) and only surface role changes, term bumps,
-// and aliveness changes — the things a reader actually wants to track.
-function deriveEvents(prevNodes, nextNodes) {
-  const events = []
-  const now = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
+function nowStamp() {
+  return new Date().toLocaleTimeString('en-US', {
+    hour12: false,
+    minute: '2-digit',
+    second: '2-digit',
+  })
+}
+
+function makeLog(from, to, eventType, term, level = 'normal', time = nowStamp()) {
+  return {
+    id: nextEventId++,
+    time,
+    from,
+    to,
+    eventType,
+    term,
+    level,
+  }
+}
+
+function rpcSig(m) {
+  return `${m.from}|${m.to}|${m.type}|${m.term}`
+}
+
+function diffRPCLogs(prevInFlight, nextInFlight) {
+  const time = nowStamp()
+  const prevCounts = new Map()
+  const nextBuckets = new Map()
+
+  for (const m of prevInFlight) {
+    const sig = rpcSig(m)
+    prevCounts.set(sig, (prevCounts.get(sig) ?? 0) + 1)
+  }
+  for (const m of nextInFlight) {
+    const sig = rpcSig(m)
+    if (!nextBuckets.has(sig)) nextBuckets.set(sig, { msg: m, count: 0 })
+    nextBuckets.get(sig).count += 1
+  }
+
+  const logs = []
+  for (const [sig, bucket] of nextBuckets) {
+    const prevCount = prevCounts.get(sig) ?? 0
+    const delta = bucket.count - prevCount
+    if (delta <= 0) continue
+    for (let i = 0; i < delta; i++) {
+      logs.push(makeLog(bucket.msg.from, bucket.msg.to, bucket.msg.type, bucket.msg.term, 'normal', time))
+    }
+  }
+  return logs
+}
+
+function deriveStateLogs(prevNodes, nextNodes) {
+  const logs = []
+  const time = nowStamp()
+  const prevById = new Map(prevNodes.map(n => [n.id, n]))
 
   for (const next of nextNodes) {
-    const prev = prevNodes.find(n => n.id === next.id)
+    const prev = prevById.get(next.id)
     if (!prev) continue
 
     if (prev.role !== next.role) {
-      const level = next.role === 'leader' ? 'active' : 'normal'
-      events.push({
-        id: nextEventId++,
-        time: now,
-        kind: 'role_changed',
-        nodeId: next.id,
-        role: next.role,
-        term: next.term,
-        level,
-      })
-    } else if (prev.term !== next.term) {
-      events.push({
-        id: nextEventId++,
-        time: now,
-        kind: 'term_changed',
-        nodeId: next.id,
-        term: next.term,
-        level: 'normal',
-      })
+      if (next.role === 'leader' && next.alive) {
+        logs.push(makeLog(next.id, next.id, 'LeaderElected', next.term, 'active', time))
+      } else if (next.role === 'candidate' && next.alive) {
+        logs.push(makeLog(next.id, next.id, 'ElectionTimeout', next.term, 'warn', time))
+      } else {
+        logs.push(makeLog(next.id, next.id, `Role:${next.role}`, next.term, 'normal', time))
+      }
+    }
+
+    if (next.term > prev.term) {
+      logs.push(makeLog(next.id, next.id, 'TermAdvanced', next.term, 'normal', time))
     }
 
     if (prev.alive && !next.alive) {
-      events.push({
-        id: nextEventId++,
-        time: now,
-        kind: 'node_killed',
-        nodeId: next.id,
-        level: 'warn',
-      })
+      logs.push(makeLog(next.id, next.id, 'NodeCrash', next.term, 'warn', time))
     } else if (!prev.alive && next.alive) {
-      events.push({
-        id: nextEventId++,
-        time: now,
-        kind: 'node_restarted',
-        nodeId: next.id,
-        level: 'normal',
-      })
+      logs.push(makeLog(next.id, next.id, 'NodeRestarted', next.term, 'normal', time))
     }
 
     if (next.commitIndex > prev.commitIndex) {
-      events.push({
-        id: nextEventId++,
-        time: now,
-        kind: 'commit_advanced',
-        nodeId: next.id,
-        commitIndex: next.commitIndex,
-        level: 'normal',
-      })
+      logs.push(makeLog(next.id, next.id, 'Committed', next.term, 'active', time))
     }
   }
 
-  return events
+  return logs
+}
+
+function shouldPulse(prevNode, nextNode) {
+  if (!prevNode) return false
+  return prevNode.role !== nextNode.role || prevNode.term !== nextNode.term
 }
 
 export const useClusterStore = create((set, get) => ({
   nodes: [],
   inFlight: [],
-  // Events are prepended so the newest appears at the top; capped at 200 to
-  // prevent unbounded growth during a long session.
-  events: [],
+  eventLogs: [],
   selectedNodeId: null,
   wsStatus: 'connecting', // 'connecting' | 'connected' | 'reconnecting'
   lang: localStorage.getItem(LANG_STORAGE_KEY) === 'zh' ? 'zh' : 'en',
+  eventLogOpen: true,
+  actionMode: null, // null | kill | restart | heal | partition-select | partition-confirm
+  partitionGroupA: [],
+  activePartitionGroups: [],
 
   // Injected by useRaftWS so any component can fire fault commands without
   // knowing about the WebSocket directly.
   sendFault: null,
 
   applyStateUpdate(payload) {
-    const raw = Array.isArray(payload?.nodes) ? payload.nodes : []
-    const inFlight = Array.isArray(payload?.inFlight)
+    const state = get()
+    const rawNodes = Array.isArray(payload?.nodes) ? payload.nodes : []
+    const nextInFlight = Array.isArray(payload?.inFlight)
       ? payload.inFlight.slice(-256)
       : []
-    const prev = get().nodes
+    const prevNodes = state.nodes
+    const prevInFlight = state.inFlight
+    const prevById = new Map(prevNodes.map(n => [n.id, n]))
 
-    // Annotate each log entry with its committed status. The backend sends
-    // commitIndex as a scalar; we convert it here so components can treat
-    // each entry as self-describing.
-    const nodes = raw.map(n => ({
+    // We materialize pulse tokens during state ingestion so NodeCard can run
+    // short one-shot transitions without guessing transition intent locally.
+    const nextNodes = rawNodes.map(n => {
+      const prevNode = prevById.get(n.id)
+      const pulseSeq = shouldPulse(prevNode, n)
+        ? nextPulseSeq++
+        : (prevNode?.pulseSeq ?? 0)
+
+      return {
       ...n,
+      pulseSeq,
       log: (n.log ?? []).map(entry => ({
         ...entry,
         committed: entry.index <= n.commitIndex,
       })),
-    }))
+      }
+    })
 
-    const newEvents = prev.length > 0 ? deriveEvents(prev, nodes) : []
+    const stateLogs = prevNodes.length > 0
+      ? deriveStateLogs(prevNodes, nextNodes)
+      : []
+    const rpcLogs = diffRPCLogs(prevInFlight, nextInFlight)
+    const freshLogs = [...stateLogs, ...rpcLogs]
 
-    set(state => ({
-      nodes,
-      inFlight,
-      events: [...newEvents, ...state.events].slice(0, 200),
+    set(prev => ({
+      nodes: nextNodes,
+      inFlight: nextInFlight,
+      eventLogs: [...prev.eventLogs, ...freshLogs].slice(-60),
     }))
   },
 
@@ -129,6 +169,50 @@ export const useClusterStore = create((set, get) => ({
     const nextLang = get().lang === 'en' ? 'zh' : 'en'
     localStorage.setItem(LANG_STORAGE_KEY, nextLang)
     set({ lang: nextLang })
+  },
+
+  toggleEventLog() {
+    set(state => ({ eventLogOpen: !state.eventLogOpen }))
+  },
+
+  beginAction(mode) {
+    if (mode === 'partition-select') {
+      set({ actionMode: mode, partitionGroupA: [] })
+      return
+    }
+    set({ actionMode: mode, partitionGroupA: [] })
+  },
+
+  cancelAction() {
+    set({ actionMode: null, partitionGroupA: [] })
+  },
+
+  togglePartitionGroupANode(id) {
+    set(state => {
+      if (state.actionMode !== 'partition-select') return {}
+      const has = state.partitionGroupA.includes(id)
+      const next = has
+        ? state.partitionGroupA.filter(x => x !== id)
+        : [...state.partitionGroupA, id]
+      return { partitionGroupA: next }
+    })
+  },
+
+  goPartitionConfirm() {
+    set(state => (
+      state.actionMode === 'partition-select'
+        ? { actionMode: 'partition-confirm' }
+        : state
+    ))
+  },
+
+  setActivePartitionGroups(groups) {
+    const normalized = Array.isArray(groups) ? groups.filter(Array.isArray) : []
+    set({ activePartitionGroups: normalized })
+  },
+
+  clearActivePartitionGroups() {
+    set({ activePartitionGroups: [] })
   },
 
   setWsStatus(status) { set({ wsStatus: status }) },

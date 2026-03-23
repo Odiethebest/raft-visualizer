@@ -25,6 +25,16 @@ export default function LogPanel() {
   )
 }
 
+function formatVotedFor(node) {
+  if (node.votedFor === null || node.votedFor === undefined || node.votedFor === -1) {
+    return '—'
+  }
+  if (Number(node.votedFor) === Number(node.id)) {
+    return 'self'
+  }
+  return `node ${node.votedFor} · t${node.term}`
+}
+
 function NodeStats({ node, lang }) {
   const text = logCopy(lang)
 
@@ -55,7 +65,7 @@ function NodeStats({ node, lang }) {
           <div className={styles.statCell}>
             <span className={styles.statLabel}>{text.votedFor}</span>
             <span className={styles.statValue}>
-              {node.votedFor === -1 ? '—' : node.votedFor}
+              {formatVotedFor(node)}
             </span>
           </div>
         </div>
@@ -77,7 +87,7 @@ function LogEntries({ node, lang }) {
       {!node ? (
         <div className={styles.empty}>—</div>
       ) : node.log.length === 0 ? (
-        <div className={styles.empty}>{text.noEntries}</div>
+        <div className={`${styles.empty} ${styles.emptyLog}`}>{text.noEntries}</div>
       ) : (
         <div className={styles.logList}>
           {/* Newest entry at top so you can see replication progress

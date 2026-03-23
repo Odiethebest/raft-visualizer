@@ -1,15 +1,20 @@
+import { useEffect, useRef } from 'react'
 import { useClusterStore } from '../store/clusterStore'
-import { eventCopy, formatEvent } from '../i18n/uiText'
+import { eventCopy } from '../i18n/uiText'
 import styles from './EventStream.module.css'
 
-// EventStream shows a rolling log of cluster-level state transitions.
-// Events are prepended in the store so the newest is always at the top here —
-// no auto-scroll needed.
-
 export default function EventStream() {
-  const events = useClusterStore(s => s.events)
+  const events = useClusterStore(s => s.eventLogs)
   const lang = useClusterStore(s => s.lang)
   const text = eventCopy(lang)
+  const listRef = useRef(null)
+
+  useEffect(() => {
+    const el = listRef.current
+    if (!el) return
+    // Pinning to the tail keeps high-frequency protocol traffic readable.
+    el.scrollTop = el.scrollHeight
+  }, [events.length])
 
   return (
     <div className={styles.stream}>
@@ -17,11 +22,13 @@ export default function EventStream() {
       {events.length === 0 ? (
         <div className={styles.empty}>{text.empty}</div>
       ) : (
-        <div className={styles.list}>
+        <div className={styles.list} ref={listRef}>
           {events.map(ev => (
             <div key={ev.id} className={`${styles.event} ${styles[ev.level] ?? styles.normal}`}>
-              <span className={styles.time}>{ev.time}</span>
-              <span className={styles.message}>{formatEvent(ev, lang)}</span>
+              <span className={styles.time}>[{ev.time}]</span>
+              <span className={styles.route}>[node{ev.from} → node{ev.to}]</span>
+              <span className={styles.type}>[{ev.eventType}]</span>
+              <span className={styles.term}>[t{ev.term}]</span>
             </div>
           ))}
         </div>

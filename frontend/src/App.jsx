@@ -6,7 +6,6 @@ import LogPanel from './components/LogPanel'
 import EventStream from './components/EventStream'
 import ControlPanel from './components/ControlPanel'
 import IntroLanding from './components/IntroLanding'
-import { HINT_REOPEN_EVENT } from './components/HintCard'
 import { appCopy, wsStatusLabel } from './i18n/uiText'
 import './App.css'
 
@@ -37,14 +36,12 @@ function LiveDemoApp() {
   const wsStatus = useClusterStore(s => s.wsStatus)
   const lang     = useClusterStore(s => s.lang)
   const toggleLang = useClusterStore(s => s.toggleLang)
+  const eventLogOpen = useClusterStore(s => s.eventLogOpen)
+  const toggleEventLog = useClusterStore(s => s.toggleEventLog)
 
   const leader = nodes.find(n => n.role === 'leader' && n.alive)
   const alive  = nodes.filter(n => n.alive).length
   const text = appCopy(lang)
-
-  function reopenHint() {
-    window.dispatchEvent(new Event(HINT_REOPEN_EVENT))
-  }
 
   return (
     <div className="app">
@@ -68,8 +65,8 @@ function LiveDemoApp() {
             <span className="headerStatLabel">{text.alive}</span>
             <span className="headerStatValue">{alive} / {nodes.length}</span>
           </div>
-          <button className="headerActionBtn" onClick={reopenHint}>
-            {text.guide}
+          <button className="headerActionBtn" onClick={toggleEventLog}>
+            {text.eventLogToggle}
           </button>
           <button className="headerActionBtn" onClick={toggleLang}>
             {text.langToggle}
@@ -85,7 +82,7 @@ function LiveDemoApp() {
         </div>
         <aside className="rightPanel">
           <LogPanel />
-          <EventStream />
+          {eventLogOpen && <EventStream />}
         </aside>
       </div>
     </div>

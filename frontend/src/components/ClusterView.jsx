@@ -1,7 +1,6 @@
-import { useMemo, useEffect, useRef } from 'react'
+import { useMemo, useEffect, useRef, useState } from 'react'
 import {
   ReactFlow,
-  BaseEdge,
   getBezierPath,
   useReactFlow,
 } from '@xyflow/react'
@@ -16,14 +15,15 @@ import styles from './ClusterView.module.css'
 
 const NODE_RADIUS = 160
 const CENTER      = { x: 250, y: 220 }
-const NODE_SIZE   = 72
+const FOLLOWER_SIZE = 72
+const LEADER_SIZE = 86.4
 
-function computePositions(count) {
+function computeCenters(count) {
   return Array.from({ length: count }, (_, i) => {
     const angle = -Math.PI / 2 + (2 * Math.PI / count) * i
     return {
-      x: CENTER.x + NODE_RADIUS * Math.cos(angle) - NODE_SIZE / 2,
-      y: CENTER.y + NODE_RADIUS * Math.sin(angle) - NODE_SIZE / 2,
+      x: CENTER.x + NODE_RADIUS * Math.cos(angle),
+      y: CENTER.y + NODE_RADIUS * Math.sin(angle),
     }
   })
 }
@@ -38,10 +38,7 @@ const MSG_COLORS = {
 }
 
 const MSG_DURATION = {
-  RequestVote:        '1.4s',
-  RequestVoteReply:   '1.2s',
-  AppendEntries:      '2.1s',
-  AppendEntriesReply: '1.7s',
+  AppendEntries: '2.1s',
 }
 
 // AnimatedEdge reads inFlight directly from the store so that it can
@@ -50,19 +47,38 @@ const MSG_DURATION = {
 // edge (and restart animateMotion from zero) every time a new heartbeat
 // arrived — producing the one-frame flicker seen before this fix.
 function AnimatedEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, source, target }) {
+  const [hovered, setHovered] = useState(false)
   const from = Number(source)
   const to = Number(target)
   const inFlight = useClusterStore(s => s.inFlight)
   const messages = useMemo(
-    () => inFlight.filter(m => m.from === from && m.to === to).slice(-1),
+    () => inFlight
+      .filter(m => m.from === from && m.to === to && m.type === 'AppendEntries')
+      .slice(-1),
     [inFlight, from, to]
   )
 
   const [edgePath] = getBezierPath({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition })
+  const stroke = hovered ? '#9BA8AB' : '#C2C8C7'
+  const markerId = `arrow-${id}`
 
   return (
     <>
-      <BaseEdge id={id} path={edgePath} style={{ stroke: 'var(--border-main)', strokeWidth: 1.5 }} />
+      <defs>
+        <marker id={markerId} markerWidth="10" markerHeight="7" refX="8.2" refY="3.5" orient="auto">
+          <path d="M0,0 L10,3.5 L0,7 z" fill={stroke} />
+        </marker>
+      </defs>
+      <path
+        id={id}
+        d={edgePath}
+        fill="none"
+        stroke={stroke}
+        strokeWidth={1.5}
+        markerEnd={`url(#${markerId})`}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+      />
       {messages.map((msg, i) => (
         <circle key={`${from}-${to}-${msg.type}-${i}`} r={3.5} fill={MSG_COLORS[msg.type] ?? '#9BA8AB'}>
           <animateMotion
@@ -104,46 +120,99 @@ function FitViewOnLoad({ nodeCount }) {
 // --- Main component ---------------------------------------------------
 
 export default function ClusterView() {
-  const nodes      = useClusterStore(s => s.nodes)
+  const nodes = useClusterStore(s => s.nodes)
   const selectNode = useClusterStore(s => s.selectNode)
+  const actionMode = useClusterStore(s => s.actionMode)
+  const activePartitionGroups = useClusterStore(s => s.activePartitionGroups)
+  const togglePartitionGroupANode = useClusterStore(s => s.togglePartitionGroupANode)
+  const cancelAction = useClusterStore(s => s.cancelAction)
+  const sendFault = useClusterStore(s => s.sendFault)
+  const clearActivePartitionGroups = useClusterStore(s => s.clearActivePartitionGroups)
 
   const nodeCount = nodes.length
-  const positions = useMemo(() => computePositions(nodeCount), [nodeCount])
+  const centers = useMemo(() => computeCenters(nodeCount), [nodeCount])
+  const leader = nodes.find(n => n.alive && n.role === 'leader')
+
+  const partitionedSet = useMemo(() => {
+    const set = new Set()
+    for (const group of activePartitionGroups) {
+      for (const id of group) set.add(id)
+    }
+    return set
+  }, [activePartitionGroups])
 
   // flowNodes is derived directly from the store's nodes array — no
   // placeholder nodes. An empty array before data arrives means ReactFlow
   // starts with a clean canvas, and NodeCard never receives a null node.
   // When data arrives, all nodes appear at once with real state.
   const flowNodes = useMemo(() =>
-    nodes.map((node, i) => ({
-      id:        String(node.id),
-      type:      'raftNode',
-      position:  positions[i] ?? { x: 0, y: 0 },
-      data:      { node },
-      draggable: false,
-    })),
-    [nodes, positions]
+    nodes.map((node, i) => {
+      const size = node.role === 'leader' && node.alive ? LEADER_SIZE : FOLLOWER_SIZE
+      const center = centers[i] ?? { x: 0, y: 0 }
+
+      return {
+        id:        String(node.id),
+        type:      'raftNode',
+        position:  { x: center.x - size / 2, y: center.y - size / 2 },
+        data:      { node },
+        draggable: false,
+      }
+    }),
+    [nodes, centers]
   )
 
-  // Edges are static in shape — AnimatedEdge subscribes to the store for
-  // the in-flight message dots so the edge component itself never remounts.
   const flowEdges = useMemo(() => {
-    if (nodeCount === 0) return []
-    const edges = []
-    for (let a = 0; a < nodeCount; a++) {
-      for (let b = 0; b < nodeCount; b++) {
-        if (a === b) continue
-        edges.push({
-          id:     `e${a}-${b}`,
-          source: String(nodes[a].id),
-          target: String(nodes[b].id),
-          type:   'animated',
-          zIndex: -1,
-        })
-      }
+    if (!leader) return []
+    return nodes
+      .filter(n => n.id !== leader.id && n.alive)
+      .map(n => ({
+        id:     `e${leader.id}-${n.id}`,
+        source: String(leader.id),
+        target: String(n.id),
+        type:   'animated',
+        zIndex: -1,
+      }))
+  }, [leader, nodes])
+
+  function handleActionClick(node) {
+    if (actionMode === 'partition-select') {
+      if (node.alive) togglePartitionGroupANode(node.id)
+      return true
     }
-    return edges
-  }, [nodeCount, nodes])
+
+    if (actionMode === 'kill') {
+      if (!node.alive) return true
+      sendFault?.('kill', [node.id], [], '')
+      cancelAction()
+      return true
+    }
+
+    if (actionMode === 'restart') {
+      if (node.alive) return true
+      sendFault?.('restart', [node.id], [], '')
+      cancelAction()
+      return true
+    }
+
+    if (actionMode === 'heal') {
+      const selectable = !node.alive || partitionedSet.has(node.id)
+      if (!selectable) return true
+
+      if (!node.alive) {
+        sendFault?.('restart', [node.id], [], '')
+      } else {
+        sendFault?.('heal', [], [], '')
+        clearActivePartitionGroups()
+      }
+      cancelAction()
+      return true
+    }
+
+    if (actionMode === 'partition-confirm') {
+      return true
+    }
+    return false
+  }
 
   return (
     <div className={styles.canvas}>
@@ -153,8 +222,16 @@ export default function ClusterView() {
         edges={flowEdges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
-        onNodeClick={(_, flowNode) => selectNode(Number(flowNode.id))}
-        onPaneClick={() => selectNode(null)}
+        onNodeClick={(_, flowNode) => {
+          const node = nodes.find(n => Number(n.id) === Number(flowNode.id))
+          if (!node) return
+          if (handleActionClick(node)) return
+          selectNode(Number(flowNode.id))
+        }}
+        onPaneClick={() => {
+          if (actionMode) return
+          selectNode(null)
+        }}
         nodesDraggable={false}
         nodesConnectable={false}
         panOnDrag

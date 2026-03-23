@@ -2,8 +2,8 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  flex: 1;
   border-top: 1px solid var(--border-main);
+  height: 38%;
 }
 
 .title {
@@ -19,17 +19,19 @@
 .list {
   flex: 1;
   overflow-y: auto;
-  padding: 4px 0;
+  padding: 6px 0;
 }
 
 .event {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
   align-items: baseline;
   gap: 8px;
-  padding: 4px 16px;
+  padding: 4px 14px;
   font-size: 10px;
   line-height: 1.5;
   border-bottom: 1px solid transparent;
+  font-family: var(--font-mono);
 }
 
 .event:hover {
@@ -42,11 +44,26 @@
   font-size: 9px;
 }
 
-.message { flex: 1; }
+.route {
+  color: var(--text-aux);
+  white-space: nowrap;
+}
+
+.type {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.term {
+  color: var(--text-hint);
+  white-space: nowrap;
+}
 
 /* Level variants — warn is the most prominent so bad things are hard to miss */
 .normal { color: var(--text-aux); }
-.active { color: var(--accent-active); font-weight: 500; }
+.active { color: var(--accent-active); font-weight: 700; }
 .warn   { color: var(--accent-warn); }
 
 .empty {

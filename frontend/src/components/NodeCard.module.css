@@ -17,21 +17,23 @@
 
 .follower {
   background: var(--bg-panel);
-  border: 1.5px solid var(--border-main);
+  border: 1.5px solid #C2C8C7;
   color: var(--text-primary);
 }
 
 /* Candidate is like follower but with a more prominent border to signal
    "something is happening" — the node is mid-election. */
 .candidate {
-  background: var(--bg-panel);
-  border: 1.5px dashed var(--text-secondary);
-  color: var(--text-primary);
+  background: #4A5C6A;
+  border: 1.5px dashed #11212D;
+  color: #ffffff;
 }
 
 .leader {
-  background: var(--accent-leader);
-  border: 1.5px solid var(--accent-leader);
+  width: 86.4px;
+  height: 86.4px;
+  background: #11212D;
+  border: 1.5px solid #11212D;
   color: #ffffff;
 }
 
@@ -57,6 +59,41 @@
   box-shadow: 0 0 0 3px rgba(17, 33, 45, 0.35);
 }
 
+.pulseOnce::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(37, 55, 69, 0.35);
+  pointer-events: none;
+  animation: statePulse 600ms ease-out;
+}
+
+.actionSelectable::before,
+.partitionSelectable::before,
+.partitionSelected::before {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.actionSelectable::before {
+  border: 2px solid #a03030;
+  animation: actionPulse 1.25s ease-in-out infinite;
+}
+
+.partitionSelectable::before {
+  border: 2px solid #4A5C6A;
+  opacity: 0.5;
+}
+
+.partitionSelected::before {
+  border: 2px solid #253745;
+  opacity: 1;
+}
+
 .nodeId {
   font-size: 14px;
   font-weight: 600;
@@ -69,4 +106,16 @@
   letter-spacing: 0.3px;
   opacity: 0.75;
   line-height: 1;
+}
+
+@keyframes actionPulse {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.06); opacity: 0.45; }
+}
+
+@keyframes statePulse {
+  0% { transform: scale(1); opacity: 0; }
+  20% { opacity: 1; }
+  50% { transform: scale(1.15); opacity: 0.8; }
+  100% { transform: scale(1); opacity: 0; }
 }

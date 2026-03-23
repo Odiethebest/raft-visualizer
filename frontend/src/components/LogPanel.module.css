@@ -114,6 +114,13 @@
   text-align: center;
 }
 
+.emptyLog {
+  color: #C2C8C7;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: none;
+}
+
 .placeholder {
   padding: 24px 16px;
   color: var(--text-hint);

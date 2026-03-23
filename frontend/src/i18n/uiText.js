@@ -73,7 +73,7 @@ export function appCopy(lang) {
       node: '节点 node',
       term: '任期 term',
       alive: '存活 alive',
-      guide: '玩法教程 Guide',
+      eventLogToggle: '事件日志 Event Log',
       langToggle: 'EN',
     }
   }
@@ -84,7 +84,7 @@ export function appCopy(lang) {
     node: 'node',
     term: 'Term',
     alive: 'Alive',
-    guide: 'Guide',
+    eventLogToggle: 'Event Log',
     langToggle: '中文',
   }
 }
@@ -92,13 +92,13 @@ export function appCopy(lang) {
 export function eventCopy(lang) {
   if (isZh(lang)) {
     return {
-      title: '事件流 Events',
-      empty: '等待集群活动 Waiting for cluster activity...',
+      title: '事件日志 EVENT LOG',
+      empty: '等待集群事件 Waiting for cluster events...',
     }
   }
   return {
-    title: 'Events',
-    empty: 'Waiting for cluster activity...',
+    title: 'EVENT LOG',
+    empty: 'Waiting for cluster events...',
   }
 }
 
@@ -112,7 +112,7 @@ export function logCopy(lang) {
       votedFor: '投票给 Voted For',
       clickNode: '点击节点查看状态 Click a node to inspect state',
       logEntries: '日志条目 Log Entries',
-      noEntries: '暂无日志 no entries yet（可先 submit cmd）',
+      noEntries: '— submit a cmd to append the first entry —',
     }
   }
   return {
@@ -123,43 +123,55 @@ export function logCopy(lang) {
     votedFor: 'Voted For',
     clickNode: 'Click a node to inspect state',
     logEntries: 'Log Entries',
-    noEntries: 'No entries yet (submit a command to the leader)',
+    noEntries: '— submit a cmd to append the first entry —',
   }
 }
 
 export function controlCopy(lang) {
   if (isZh(lang)) {
     return {
-      pickKill: '选择要 kill 的节点 Select node to kill',
-      pickRestart: '选择要 restart 的节点 Select node to restart',
       submitToLeader: '提交命令到 Leader',
       cmdPlaceholder: '例如: set x=1',
       send: '发送 Send',
       submitCmd: '提交命令 submit cmd',
       killNode: '故障注入 kill node',
+      killSelecting: '选择目标节点 —',
       restart: '恢复 restart',
+      restartSelecting: '选择恢复节点 —',
       partition: '网络分区 partition',
+      partitionStepA: '步骤 1 / 2：选择 Group A（可多选）',
+      partitionStepB: '步骤 2 / 2：预览分组并确认分区',
+      partitionChooseHint: '点击画布节点进行分组；再次点击可取消',
+      partitionPreviewA: 'Group A',
+      partitionPreviewB: 'Group B',
+      confirmGroupA: '确认 Group A',
       heal: '网络恢复 heal',
+      healSelecting: '选择要修复的节点 —',
+      escHint: 'ESC 取消',
       cancel: '取消 Cancel',
-      groupA: '分组 group A',
-      groupB: '分组 group B',
       confirmPartition: '执行分区 Partition',
     }
   }
   return {
-    pickKill: 'Select node to kill',
-    pickRestart: 'Select node to restart',
     submitToLeader: 'Submit command to leader',
     cmdPlaceholder: 'e.g. set x=1',
     send: 'Send',
     submitCmd: 'Submit Cmd',
     killNode: 'Kill Node',
+    killSelecting: 'Select target node —',
     restart: 'Restart',
+    restartSelecting: 'Select target node —',
     partition: 'Partition',
+    partitionStepA: 'Step 1 / 2: select Group A (multi-select)',
+    partitionStepB: 'Step 2 / 2: preview groups and confirm',
+    partitionChooseHint: 'Click nodes on canvas to toggle Group A membership',
+    partitionPreviewA: 'Group A',
+    partitionPreviewB: 'Group B',
+    confirmGroupA: 'Confirm Group A',
     heal: 'Heal',
+    healSelecting: 'Select target node —',
+    escHint: 'ESC to cancel',
     cancel: 'Cancel',
-    groupA: 'Group A',
-    groupB: 'Group B',
     confirmPartition: 'Partition',
   }
 }

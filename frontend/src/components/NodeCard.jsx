@@ -8,13 +8,28 @@ import styles from './NodeCard.module.css'
 // store access here, because selection changes are infrequent and don't
 // trigger the same high-frequency re-render storm that live node data would.
 export default function NodeCard({ data }) {
-  const { node } = data
+  const node = data?.node ?? null
   const selectedNodeId = useClusterStore(s => s.selectedNodeId)
   const lang = useClusterStore(s => s.lang)
+  const actionMode = useClusterStore(s => s.actionMode)
+  const partitionGroupA = useClusterStore(s => s.partitionGroupA)
+  const activePartitionGroups = useClusterStore(s => s.activePartitionGroups)
+
+  const isSelected = node ? selectedNodeId === node.id : false
+  const inPartitionA = node ? partitionGroupA.includes(node.id) : false
+  const inKnownPartition = node
+    ? activePartitionGroups.some(group => group.includes(node.id))
+    : false
+
+  const selectable = node ? (() => {
+    if (actionMode === 'kill') return node.alive
+    if (actionMode === 'restart') return !node.alive
+    if (actionMode === 'heal') return !node.alive || inKnownPartition
+    if (actionMode === 'partition-select') return node.alive
+    return false
+  })() : false
 
   if (!node) return null
-
-  const isSelected = selectedNodeId === node.id
 
   function roleClass() {
     if (!node.alive) return styles.dead
@@ -38,7 +53,15 @@ export default function NodeCard({ data }) {
       <Handle type="source" position={Position.Left} style={hiddenHandleStyle} />
       <Handle type="source" position={Position.Right} style={hiddenHandleStyle} />
 
-      <div className={`${styles.node} ${roleClass()} ${isSelected ? styles.selected : ''}`}>
+      <div key={`node-${node.id}-${node.pulseSeq ?? 0}`} className={[
+        styles.node,
+        roleClass(),
+        isSelected ? styles.selected : '',
+        node.pulseSeq ? styles.pulseOnce : '',
+        actionMode === 'partition-select' && selectable ? styles.partitionSelectable : '',
+        actionMode === 'partition-select' && inPartitionA ? styles.partitionSelected : '',
+        actionMode !== 'partition-select' && selectable ? styles.actionSelectable : '',
+      ].filter(Boolean).join(' ')}>
         <span className={styles.nodeId}>{node.id}</span>
         <span className={styles.nodeMeta}>
           {node.alive ? `t${node.term}` : deadBadgeLabel(lang)}

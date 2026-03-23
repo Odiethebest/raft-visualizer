@@ -30,6 +30,12 @@
   cursor: pointer;
 }
 
+.btnActive {
+  background: var(--text-primary);
+  color: #ffffff;
+  border-color: var(--text-primary);
+}
+
 .btn:hover {
   background: var(--text-primary);
   color: #ffffff;
@@ -49,6 +55,12 @@
   border-color: var(--accent-warn);
 }
 
+.btnActiveDanger {
+  background: #11212D;
+  color: #ffffff;
+  border-color: #11212D;
+}
+
 .divider {
   width: 1px;
   height: 18px;
@@ -56,10 +68,7 @@
   flex-shrink: 0;
 }
 
-/* Inline node picker — appears below a button when it's "active".
-   We avoid a modal because it would obscure the graph the user is trying
-   to reason about. */
-.picker {
+.inlinePanel {
   position: absolute;
   bottom: calc(100% + 8px);
   left: 50%;
@@ -72,53 +81,15 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  min-width: 180px;
+  min-width: 260px;
 }
 
-.pickerLabel {
+.inlineTitle {
   font-size: 10px;
   color: var(--text-aux);
   letter-spacing: 0.5px;
   padding: 0 4px 4px;
   border-bottom: 1px solid var(--border-inner);
-}
-
-.nodeRow {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-  padding: 0 2px;
-}
-
-.nodeBtn {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  font-size: 11px;
-  font-weight: 500;
-  border: 1.5px solid var(--border-main);
-  background: var(--bg-panel);
-  color: var(--text-primary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 80ms ease, color 80ms ease;
-}
-
-.nodeBtn:hover {
-  background: var(--text-primary);
-  color: #ffffff;
-  border-color: var(--text-primary);
-}
-
-.nodeBtnSelected {
-  background: var(--text-primary);
-  color: #ffffff;
-  border-color: var(--text-primary);
-}
-
-.nodeBtnDead {
-  opacity: 0.4;
 }
 
 .pickerActions {
@@ -181,4 +152,43 @@
 
 .cmdInput::placeholder {
   color: var(--text-hint);
+}
+
+.inlineHint {
+  color: var(--text-hint);
+  font-size: 9px;
+  letter-spacing: 0.3px;
+}
+
+.inlinePreview {
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+
+.groupLine {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+
+.groupLabel {
+  color: var(--text-aux);
+  min-width: 42px;
+}
+
+.groupVal {
+  color: var(--text-primary);
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.escHint {
+  font-size: 9px;
+  color: var(--text-hint);
+  letter-spacing: 0.3px;
+  padding-left: 4px;
 }
