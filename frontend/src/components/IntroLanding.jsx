@@ -408,11 +408,9 @@ export default function IntroLanding({ lang, onStart, onToggleLang }) {
           <button className={styles.langBtn} onClick={onToggleLang}>
             {isZh ? 'EN' : 'ZH'}
           </button>
-          {isMobile && (
-            <button className={styles.demoBtn} onClick={onStart}>
-              Demo →
-            </button>
-          )}
+          <button className={styles.demoBtn} onClick={onStart}>
+            Demo →
+          </button>
         </div>
       </header>
 
