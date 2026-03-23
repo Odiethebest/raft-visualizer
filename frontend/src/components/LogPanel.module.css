@@ -13,8 +13,8 @@
 }
 
 .sectionTitle {
-  font-size: 10px;
-  letter-spacing: 0.8px;
+  font-size: 11px;
+  letter-spacing: 0.75px;
   text-transform: uppercase;
   color: var(--text-aux);
   padding: 12px 16px 8px;
@@ -34,21 +34,21 @@
 
 .statCell {
   background: var(--bg-panel);
-  padding: 10px 14px;
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
   gap: 3px;
 }
 
 .statLabel {
-  font-size: 9px;
-  letter-spacing: 0.6px;
+  font-size: 10px;
+  letter-spacing: 0.55px;
   text-transform: uppercase;
   color: var(--text-aux);
 }
 
 .statValue {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-primary);
   font-weight: 500;
 }
@@ -68,8 +68,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 5px 16px;
-  font-size: 11px;
+  padding: 7px 16px;
+  font-size: 12px;
   color: var(--text-secondary);
   border-bottom: 1px solid var(--border-inner);
 }
@@ -81,8 +81,8 @@
 /* The status dot indicates committed vs pending — green vs gray.
    Using a pseudo-element keeps the markup clean. */
 .dot {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   flex-shrink: 0;
 }
@@ -92,12 +92,12 @@
 
 .logIndex {
   color: var(--text-aux);
-  min-width: 18px;
+  min-width: 20px;
 }
 
 .logTerm {
   color: var(--text-hint);
-  min-width: 24px;
+  min-width: 30px;
 }
 
 .logCommand {
@@ -110,7 +110,7 @@
 .empty {
   padding: 20px 16px;
   color: var(--text-hint);
-  font-size: 11px;
+  font-size: 12px;
   text-align: center;
 }
 
@@ -124,7 +124,7 @@
 .placeholder {
   padding: 24px 16px;
   color: var(--text-hint);
-  font-size: 11px;
+  font-size: 12px;
   text-align: center;
   line-height: 1.6;
 }

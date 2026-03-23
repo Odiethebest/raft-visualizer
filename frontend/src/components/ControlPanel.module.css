@@ -2,27 +2,27 @@
    than fixed so it stays within the canvas column even when the panel is open. */
 .bar {
   position: absolute;
-  bottom: 24px;
+  bottom: 22px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   background: var(--bg-panel);
   border: 1px solid var(--border-main);
   border-radius: var(--radius-md);
-  padding: 6px 10px;
+  padding: 8px 12px;
   box-shadow: var(--shadow-float);
   z-index: 10;
   white-space: nowrap;
 }
 
 .btn {
-  height: 28px;
-  padding: 0 12px;
+  height: 32px;
+  padding: 0 14px;
   border-radius: var(--radius-sm);
-  font-size: 11px;
-  letter-spacing: 0.2px;
+  font-size: 12px;
+  letter-spacing: 0.24px;
   color: var(--text-secondary);
   border: 1px solid var(--border-main);
   background: var(--bg-panel);
@@ -63,7 +63,7 @@
 
 .divider {
   width: 1px;
-  height: 18px;
+  height: 20px;
   background: var(--border-main);
   flex-shrink: 0;
 }
@@ -77,18 +77,18 @@
   border: 1px solid var(--border-main);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-float);
-  padding: 8px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  min-width: 260px;
+  gap: 8px;
+  min-width: 320px;
 }
 
 .inlineTitle {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-aux);
-  letter-spacing: 0.5px;
-  padding: 0 4px 4px;
+  letter-spacing: 0.45px;
+  padding: 0 4px 6px;
   border-bottom: 1px solid var(--border-inner);
 }
 
@@ -101,10 +101,10 @@
 }
 
 .pickerConfirm {
-  height: 24px;
-  padding: 0 10px;
+  height: 28px;
+  padding: 0 12px;
   border-radius: var(--radius-sm);
-  font-size: 10px;
+  font-size: 11px;
   background: var(--text-primary);
   color: #ffffff;
   border: none;
@@ -117,10 +117,10 @@
 }
 
 .pickerCancel {
-  height: 24px;
-  padding: 0 10px;
+  height: 28px;
+  padding: 0 12px;
   border-radius: var(--radius-sm);
-  font-size: 10px;
+  font-size: 11px;
   background: none;
   color: var(--text-aux);
   border: 1px solid var(--border-main);
@@ -135,10 +135,10 @@
 
 .cmdInput {
   flex: 1;
-  height: 28px;
-  padding: 0 8px;
+  height: 32px;
+  padding: 0 10px;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 12px;
   border: 1px solid var(--border-main);
   border-radius: var(--radius-sm);
   color: var(--text-primary);
@@ -156,13 +156,13 @@
 
 .inlineHint {
   color: var(--text-hint);
-  font-size: 9px;
-  letter-spacing: 0.3px;
+  font-size: 10px;
+  letter-spacing: 0.25px;
 }
 
 .inlinePreview {
   color: var(--text-secondary);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .groupLine {
@@ -170,7 +170,7 @@
   align-items: baseline;
   gap: 6px;
   color: var(--text-secondary);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .groupLabel {
@@ -187,8 +187,95 @@
 }
 
 .escHint {
-  font-size: 9px;
+  font-size: 10px;
   color: var(--text-hint);
-  letter-spacing: 0.3px;
-  padding-left: 4px;
+  letter-spacing: 0.24px;
+  padding-left: 6px;
+}
+
+.tutorialPanel {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(680px, calc(100vw - 64px));
+  max-height: min(70vh, 620px);
+  overflow-y: auto;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-main);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-float);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tutorialHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-inner);
+}
+
+.tutorialTitle {
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  color: var(--text-primary);
+}
+
+.tutorialIntro {
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.tutorialSection {
+  border-top: 1px solid var(--border-inner);
+  padding-top: 9px;
+}
+
+.tutorialSectionTitle {
+  font-size: 11px;
+  color: var(--text-aux);
+  letter-spacing: 0.4px;
+  margin-bottom: 6px;
+}
+
+.tutorialList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tutorialItem {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+
+.tutorialCmd {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-primary);
+  border: 1px solid var(--border-main);
+  background: var(--bg-canvas);
+  border-radius: 4px;
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+
+.tutorialStepNo {
+  color: var(--text-hint);
+  font-size: 11px;
+  min-width: 16px;
+}
+
+.tutorialDetail {
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.6;
 }

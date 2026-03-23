@@ -24,10 +24,10 @@ export default function App() {
     )
   }
 
-  return <LiveDemoApp />
+  return <LiveDemoApp onBack={() => setStarted(false)} />
 }
 
-function LiveDemoApp() {
+function LiveDemoApp({ onBack }) {
   // useRaftWS owns the WebSocket lifecycle. It only mounts after the user
   // clicks "Start Demo", and unmounts when the page closes.
   useRaftWS()
@@ -47,8 +47,13 @@ function LiveDemoApp() {
     <div className="app">
       <header className="header">
         <div className="headerLeft">
-          <span className="headerTitle">{text.title}</span>
-          <span className="headerSub">{text.sub}</span>
+          <button className="headerActionBtn headerBackBtn" onClick={onBack}>
+            {text.back}
+          </button>
+          <div className="headerBrand">
+            <span className="headerTitle">{text.title}</span>
+            <span className="headerSub">{text.sub}</span>
+          </div>
         </div>
         <div className="headerRight">
           {leader && (

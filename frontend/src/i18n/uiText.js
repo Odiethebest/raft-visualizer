@@ -69,6 +69,7 @@ export function appCopy(lang) {
     return {
       title: 'Raft 共识 Raft Consensus',
       sub: '作者 Odie Yang',
+      back: '返回引导页 Back',
       leader: '领导者 Leader',
       node: '节点 node',
       term: '任期 term',
@@ -80,12 +81,13 @@ export function appCopy(lang) {
   return {
     title: 'Raft Consensus',
     sub: 'By Odie Yang',
+    back: 'Back',
     leader: 'Leader',
     node: 'node',
     term: 'Term',
     alive: 'Alive',
     eventLogToggle: 'Event Log',
-    langToggle: '中文',
+    langToggle: 'ZH',
   }
 }
 
@@ -130,6 +132,31 @@ export function logCopy(lang) {
 export function controlCopy(lang) {
   if (isZh(lang)) {
     return {
+      tutorial: '教程 Tutorial',
+      tutorialClose: '关闭教程',
+      tutorialTitle: '玩法与命令教程',
+      tutorialIntro: '可随时打开，快速查看命令写法、实验路径和可观察到的 Raft 行为。',
+      tutorialCmds: '常用 submit cmd 示例',
+      tutorialCmdExamples: [
+        { cmd: 'set x=1', detail: '追加一条写入日志；多数复制后会显示 committed。' },
+        { cmd: 'set y=2', detail: '继续写入可观察 log index 连续递增。' },
+        { cmd: 'inc counter', detail: '语义化命令便于区分各次复制与提交。' },
+        { cmd: 'transfer node3', detail: '任意字符串都可作为命令载荷参与复制。' },
+      ],
+      tutorialHow: '推荐玩法',
+      tutorialHowItems: [
+        '先看当前 Leader、term、commitIndex，再提交 2~3 条命令建立基线。',
+        '点击 kill node 杀掉 Leader，观察多数派如何触发新一轮选举。',
+        '执行 partition，把集群拆成 2 组，观察少数派无法提交新日志。',
+        '执行 heal / restart 后继续 submit cmd，观察日志回补与角色收敛。',
+      ],
+      tutorialRaft: '这些操作如何体现 Raft',
+      tutorialRaftItems: [
+        'Leader Election：election timeout 会把 Follower 推进为 Candidate 并请求投票。',
+        'Log Replication：只有 Leader 接收客户端命令并用 AppendEntries 复制到 followers。',
+        'Safety：已提交日志在 leader 切换后依然保留，体现 leader completeness。',
+        'Fault Tolerance：crash、partition、heal、restart 共同展示 quorum 约束。',
+      ],
       submitToLeader: '提交命令到 Leader',
       cmdPlaceholder: '例如: set x=1',
       send: '发送 Send',
@@ -153,6 +180,31 @@ export function controlCopy(lang) {
     }
   }
   return {
+    tutorial: 'Tutorial',
+    tutorialClose: 'Close Tutorial',
+    tutorialTitle: 'How to Play & Command Guide',
+    tutorialIntro: 'Open this panel anytime for command patterns, interaction flow, and Raft signals to watch.',
+    tutorialCmds: 'Useful submit cmd examples',
+    tutorialCmdExamples: [
+      { cmd: 'set x=1', detail: 'Appends a write entry; it turns committed after majority replication.' },
+      { cmd: 'set y=2', detail: 'Adds a second entry so you can inspect monotonically increasing log indexes.' },
+      { cmd: 'inc counter', detail: 'A semantic command that makes replication steps easy to trace in the log.' },
+      { cmd: 'transfer node3', detail: 'Any opaque string works; the protocol replicates bytes, not command meaning.' },
+    ],
+    tutorialHow: 'Recommended interactions',
+    tutorialHowItems: [
+      'Start by reading leader, term, and commitIndex, then submit 2-3 commands as baseline traffic.',
+      'Use kill node on the leader and watch a new election complete with majority voting.',
+      'Use partition to split the cluster and verify minority side cannot commit fresh entries.',
+      'Use heal or restart, then submit again to observe convergence and log repair.',
+    ],
+    tutorialRaft: 'How this demonstrates Raft',
+    tutorialRaftItems: [
+      'Leader Election: election timeout promotes a follower to candidate, then majority grants leadership.',
+      'Log Replication: the leader accepts client commands and ships them via AppendEntries.',
+      'Safety: committed entries survive leadership changes, showing leader completeness in practice.',
+      'Fault Tolerance: crash, partition, heal, and restart expose quorum boundaries and recovery.',
+    ],
     submitToLeader: 'Submit command to leader',
     cmdPlaceholder: 'e.g. set x=1',
     send: 'Send',

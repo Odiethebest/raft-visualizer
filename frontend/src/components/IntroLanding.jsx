@@ -4,9 +4,12 @@ import styles from './IntroLanding.module.css'
 const CHAPTERS = [
   {
     id: '01',
-    nav: '为什么需要 Consensus',
+    navZh: '为什么需要 Consensus',
+    navEn: 'Why Consensus Matters',
     titleZh: '为什么需要 Consensus',
     titleEn: 'Why Consensus Exists',
+    subtitleZh: '没有共识就没有一致性',
+    subtitleEn: 'Consistency Before Availability',
     summaryZh: '没有共识，副本状态会分叉。',
     summaryEn: 'Without consensus, replicas diverge.',
     bodyZh: (
@@ -26,9 +29,12 @@ const CHAPTERS = [
   },
   {
     id: '02',
-    nav: 'Raft 设计目标',
+    navZh: 'Raft 设计目标',
+    navEn: 'Raft Design Goal',
     titleZh: 'Raft 设计目标',
     titleEn: 'Raft Design Goal',
+    subtitleZh: '可理解性优先于复杂技巧',
+    subtitleEn: 'Understandability as a Constraint',
     summaryZh: '可理解性优先于复杂技巧。',
     summaryEn: 'Understandability is a first-class goal.',
     bodyZh: (
@@ -47,9 +53,12 @@ const CHAPTERS = [
   },
   {
     id: '03',
-    nav: '角色模型 Role Model',
+    navZh: '角色模型 Role Model',
+    navEn: 'Role Model',
     titleZh: '角色模型 Role Model',
     titleEn: 'Role Model',
+    subtitleZh: '三种角色与单调任期',
+    subtitleEn: 'Follower, Candidate, Leader',
     summaryZh: '三态切换，任期单调递增。',
     summaryEn: 'Three roles, monotonically increasing terms.',
     bodyZh: (
@@ -69,9 +78,12 @@ const CHAPTERS = [
   },
   {
     id: '04',
-    nav: '选举流程 Election',
+    navZh: '选举流程 Election',
+    navEn: 'Election Flow',
     titleZh: '选举流程 Election',
     titleEn: 'Election Flow',
+    subtitleZh: '超时、投票、当选',
+    subtitleEn: 'Timeout, Vote, Leader',
     summaryZh: '超时触发投票，多数票选主。',
     summaryEn: 'Timeouts trigger voting; majority elects leader.',
     bodyZh: (
@@ -91,9 +103,12 @@ const CHAPTERS = [
   },
   {
     id: '05',
-    nav: '复制流程 Replication',
+    navZh: '复制流程 Replication',
+    navEn: 'Replication Flow',
     titleZh: '复制流程 Replication',
     titleEn: 'Replication Flow',
+    subtitleZh: '先写主节点，再向多数复制',
+    subtitleEn: 'AppendEntries and Commit',
     summaryZh: '先写 Leader，再向多数复制。',
     summaryEn: 'Leader first, then majority replication.',
     bodyZh: (
@@ -113,9 +128,12 @@ const CHAPTERS = [
   },
   {
     id: '06',
-    nav: '安全性 Safety',
+    navZh: '安全性 Safety',
+    navEn: 'Safety',
     titleZh: '安全性 Safety',
     titleEn: 'Safety',
+    subtitleZh: '已提交条目不会回退',
+    subtitleEn: 'Committed Means Durable',
     summaryZh: '已提交日志不会回退。',
     summaryEn: 'Committed entries do not roll back.',
     bodyZh: (
@@ -135,9 +153,12 @@ const CHAPTERS = [
   },
   {
     id: '07',
-    nav: '故障处理 Faults',
+    navZh: '故障处理 Faults',
+    navEn: 'Fault Handling',
     titleZh: '故障处理 Faults',
     titleEn: 'Fault Handling',
+    subtitleZh: '崩溃、分区与恢复',
+    subtitleEn: 'Crash, Partition, Recovery',
     summaryZh: '支持 crash / restart / partition / heal。',
     summaryEn: 'Crash, restart, partition, and heal are first-class.',
     bodyZh: (
@@ -157,9 +178,12 @@ const CHAPTERS = [
   },
   {
     id: '08',
-    nav: '你将看到什么',
+    navZh: '你将看到什么',
+    navEn: 'What You Will See',
     titleZh: '你将看到什么',
     titleEn: 'What You Will See',
+    subtitleZh: '从理论到实时信号',
+    subtitleEn: 'From Theory to Runtime Signals',
     summaryZh: '状态、日志、RPC 与事件全可见。',
     summaryEn: 'State, logs, RPC flow, and events are visible.',
     bodyZh: (
@@ -310,7 +334,7 @@ export default function IntroLanding({ lang, onStart, onToggleLang }) {
           </h1>
         </div>
         <button className={styles.langBtn} onClick={onToggleLang}>
-          {isZh ? 'EN' : '中文'}
+          {isZh ? 'EN' : 'ZH'}
         </button>
       </header>
 
@@ -327,7 +351,7 @@ export default function IntroLanding({ lang, onStart, onToggleLang }) {
                   onClick={() => scrollToChapter(ch.id)}
                 >
                   <span className={`${styles.navTag} ${isActive ? styles.navTagActive : ''}`}>{ch.id}</span>
-                  <span className={styles.navLabel}>{ch.nav}</span>
+                  <span className={styles.navLabel}>{isZh ? ch.navZh : ch.navEn}</span>
                   <span className={styles.navSummary}>{summary}</span>
                 </button>
               )
@@ -352,7 +376,7 @@ export default function IntroLanding({ lang, onStart, onToggleLang }) {
 
                   <h2 className={styles.chapterTitle}>
                     {renderAnimatedLine(isZh ? ch.titleZh : ch.titleEn, 0, shown, styles.primaryLine)}
-                    {renderAnimatedLine(isZh ? ch.titleEn : ch.titleZh, 120, shown, styles.secondaryLine)}
+                    {renderAnimatedLine(isZh ? ch.subtitleZh : ch.subtitleEn, 120, shown, styles.secondaryLine)}
                   </h2>
 
                   <p className={`${styles.chapterBody} ${shown ? styles.bodyShown : ''}`}>

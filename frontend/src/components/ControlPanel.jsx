@@ -16,6 +16,7 @@ export default function ControlPanel() {
   const text = controlCopy(lang)
 
   const [cmdText, setCmdText] = useState('')
+  const [tutorialOpen, setTutorialOpen] = useState(false)
   const inputRef = useRef(null)
   const barRef = useRef(null)
 
@@ -24,7 +25,7 @@ export default function ControlPanel() {
     () => aliveNodes.map(n => n.id).filter(id => !partitionGroupA.includes(id)),
     [aliveNodes, partitionGroupA]
   )
-  const showEscHint = Boolean(actionMode && actionMode !== 'cmd')
+  const showEscHint = Boolean((actionMode && actionMode !== 'cmd') || tutorialOpen)
 
   function closeAction() {
     cancelAction()
@@ -32,16 +33,22 @@ export default function ControlPanel() {
   }
 
   useEffect(() => {
-    if (!actionMode) return
+    const closeOnOutside = actionMode === 'cmd' || tutorialOpen
+    if (!closeOnOutside) return
     function onDown(e) {
       if (barRef.current && !barRef.current.contains(e.target)) {
-        cancelAction()
-        setCmdText('')
+        // Keeping node-targeted fault modes open avoids accidental exits
+        // before users can click a node on the canvas.
+        if (actionMode === 'cmd') {
+          cancelAction()
+          setCmdText('')
+        }
+        if (tutorialOpen) setTutorialOpen(false)
       }
     }
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
-  }, [actionMode, cancelAction])
+  }, [actionMode, tutorialOpen, cancelAction])
 
   useEffect(() => {
     if (actionMode === 'cmd') inputRef.current?.focus()
@@ -49,15 +56,16 @@ export default function ControlPanel() {
 
   useEffect(() => {
     function onKeyDown(e) {
-      if (e.key === 'Escape' && actionMode) {
+      if (e.key === 'Escape' && (actionMode || tutorialOpen)) {
         e.preventDefault()
         cancelAction()
         setCmdText('')
+        setTutorialOpen(false)
       }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [actionMode, cancelAction])
+  }, [actionMode, tutorialOpen, cancelAction])
 
   function submitCmd(e) {
     e.preventDefault()
@@ -80,11 +88,24 @@ export default function ControlPanel() {
   }
 
   function startAction(mode) {
+    // Fault pickers and long-form tutorial share the same visual space;
+    // collapsing one before opening the other prevents panel overlap.
+    setTutorialOpen(false)
     if (actionMode === mode) {
       closeAction()
       return
     }
     beginAction(mode)
+  }
+
+  function toggleTutorial() {
+    if (tutorialOpen) {
+      setTutorialOpen(false)
+      return
+    }
+    cancelAction()
+    setCmdText('')
+    setTutorialOpen(true)
   }
 
   function handleHealClick() {
@@ -95,6 +116,53 @@ export default function ControlPanel() {
 
   return (
     <div className={styles.bar} ref={barRef}>
+      {tutorialOpen && (
+        <div className={styles.tutorialPanel}>
+          <div className={styles.tutorialHeader}>
+            <div className={styles.tutorialTitle}>{text.tutorialTitle}</div>
+            <button className={styles.pickerCancel} onClick={() => setTutorialOpen(false)}>
+              {text.tutorialClose}
+            </button>
+          </div>
+          <p className={styles.tutorialIntro}>{text.tutorialIntro}</p>
+
+          <div className={styles.tutorialSection}>
+            <div className={styles.tutorialSectionTitle}>{text.tutorialCmds}</div>
+            <div className={styles.tutorialList}>
+              {text.tutorialCmdExamples.map((item, idx) => (
+                <div key={`${item.cmd}-${idx}`} className={styles.tutorialItem}>
+                  <code className={styles.tutorialCmd}>{item.cmd}</code>
+                  <span className={styles.tutorialDetail}>{item.detail}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className={styles.tutorialSection}>
+            <div className={styles.tutorialSectionTitle}>{text.tutorialHow}</div>
+            <div className={styles.tutorialList}>
+              {text.tutorialHowItems.map((line, idx) => (
+                <div key={`${line}-${idx}`} className={styles.tutorialItem}>
+                  <span className={styles.tutorialStepNo}>{idx + 1}.</span>
+                  <span className={styles.tutorialDetail}>{line}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className={styles.tutorialSection}>
+            <div className={styles.tutorialSectionTitle}>{text.tutorialRaft}</div>
+            <div className={styles.tutorialList}>
+              {text.tutorialRaftItems.map((line, idx) => (
+                <div key={`${line}-${idx}`} className={styles.tutorialItem}>
+                  <span className={styles.tutorialDetail}>{line}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {actionMode === 'cmd' && (
         <div className={styles.inlinePanel}>
           <div className={styles.inlineTitle}>{text.submitToLeader}</div>
@@ -164,6 +232,9 @@ export default function ControlPanel() {
 
       <button className={`${styles.btn} ${actionMode === 'cmd' ? styles.btnActive : ''}`} onClick={() => startAction('cmd')}>
         {text.submitCmd}
+      </button>
+      <button className={`${styles.btn} ${tutorialOpen ? styles.btnActive : ''}`} onClick={toggleTutorial}>
+        {text.tutorial}
       </button>
       <div className={styles.divider} />
       <button
