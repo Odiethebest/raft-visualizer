@@ -208,10 +208,17 @@ function splitChars(text) {
 
 export default function IntroLanding({ lang, onStart, onToggleLang }) {
   const isZh = lang === 'zh'
+  const isMobile = useIsMobile()
+  const headerTitle = isMobile
+    ? 'Raft Visualizer'
+    : (isZh ? 'Raft 可视化实验场' : 'Raft Consensus Visualizer')
   const pageRef = useRef(null)
   const chapterRefs = useRef(new Map())
+  const mobileStateRef = useRef({})
+  const mobileExitTimers = useRef(new Map())
   const [activeId, setActiveId] = useState(CHAPTERS[0].id)
   const [animated, setAnimated] = useState(() => new Set())
+  const [mobileSectionState, setMobileSectionState] = useState({})
 
   function setChapterRef(id) {
     return (el) => {
@@ -230,20 +237,61 @@ export default function IntroLanding({ lang, onStart, onToggleLang }) {
   }
 
   useEffect(() => {
+    mobileStateRef.current = mobileSectionState
+  }, [mobileSectionState])
+
+  useEffect(() => {
+    const timers = mobileExitTimers.current
+    return () => {
+      for (const timer of timers.values()) {
+        clearTimeout(timer)
+      }
+      timers.clear()
+    }
+  }, [])
+
+  useEffect(() => {
     const root = pageRef.current
     if (!root) return
 
-    // We gate animations with viewport entry so large text remains legible
-    // and calm during initial load instead of overwhelming the first frame.
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
-          if (!entry.isIntersecting) continue
           const id = entry.target.getAttribute('data-chapter-id')
-          if (id) markAnimated(id)
+          if (!id) continue
+
+          if (!isMobile) {
+            if (entry.isIntersecting) markAnimated(id)
+            continue
+          }
+
+          if (entry.isIntersecting) {
+            const timer = mobileExitTimers.current.get(id)
+            if (timer) {
+              clearTimeout(timer)
+              mobileExitTimers.current.delete(id)
+            }
+            setMobileSectionState(prev => (
+              prev[id] === 'visible' ? prev : { ...prev, [id]: 'visible' }
+            ))
+            continue
+          }
+
+          if (mobileStateRef.current[id] !== 'visible') continue
+          setMobileSectionState(prev => ({ ...prev, [id]: 'exiting' }))
+
+          const prevTimer = mobileExitTimers.current.get(id)
+          if (prevTimer) clearTimeout(prevTimer)
+          const timer = window.setTimeout(() => {
+            setMobileSectionState(prev => (
+              prev[id] === 'exiting' ? { ...prev, [id]: 'idle' } : prev
+            ))
+            mobileExitTimers.current.delete(id)
+          }, 400)
+          mobileExitTimers.current.set(id, timer)
         }
       },
-      { root, threshold: 0.33 }
+      { root, threshold: isMobile ? 0.4 : 0.33 }
     )
 
     for (const ch of CHAPTERS) {
@@ -252,7 +300,7 @@ export default function IntroLanding({ lang, onStart, onToggleLang }) {
     }
 
     return () => observer.disconnect()
-  }, [])
+  }, [isMobile])
 
   useEffect(() => {
     const root = pageRef.current
@@ -308,18 +356,41 @@ export default function IntroLanding({ lang, onStart, onToggleLang }) {
   }
 
   function renderAnimatedLine(text, baseDelay, isShown, lineClassName) {
-    const chars = splitChars(text)
+    const tokens = text.split(/(\s+)/)
+    const nodes = []
+    let offset = 0
+
+    for (let tokenIdx = 0; tokenIdx < tokens.length; tokenIdx++) {
+      const token = tokens[tokenIdx]
+      if (/^\s+$/.test(token)) {
+        nodes.push(<span key={`${text}-space-${tokenIdx}`}>{token}</span>)
+        continue
+      }
+
+      const chars = splitChars(token)
+      const tokenClass = /[A-Za-z0-9]/.test(token)
+        ? styles.wordChunkLatin
+        : styles.wordChunk
+      const wordChars = chars.map((ch, i) => (
+        <span
+          key={`${text}-${tokenIdx}-${i}`}
+          className={`${styles.char} ${isShown ? styles.charShown : ''}`}
+          style={{ animationDelay: `${baseDelay + (offset + i) * 30}ms` }}
+        >
+          {ch}
+        </span>
+      ))
+      offset += chars.length
+      nodes.push(
+        <span key={`${text}-word-${tokenIdx}`} className={tokenClass}>
+          {wordChars}
+        </span>
+      )
+    }
+
     return (
       <span className={`${styles.titleLine} ${lineClassName}`}>
-        {chars.map((ch, i) => (
-          <span
-            key={`${text}-${i}`}
-            className={`${styles.char} ${isShown ? styles.charShown : ''}`}
-            style={{ animationDelay: `${baseDelay + i * 30}ms` }}
-          >
-            {ch === ' ' ? '\u00A0' : ch}
-          </span>
-        ))}
+        {nodes}
       </span>
     )
   }
@@ -328,46 +399,63 @@ export default function IntroLanding({ lang, onStart, onToggleLang }) {
     <div className={styles.page} ref={pageRef}>
       <header className={styles.topHeader}>
         <div className={styles.topHeaderLeft}>
-          <span className={styles.badge}>By Odie Yang</span>
           <h1 className={styles.pageTitle}>
-            {isZh ? 'Raft 可视化实验场' : 'Raft Consensus Visualizer'}
+            {headerTitle}
           </h1>
+          <span className={styles.badge}>By Odie Yang</span>
         </div>
-        <button className={styles.langBtn} onClick={onToggleLang}>
-          {isZh ? 'EN' : 'ZH'}
-        </button>
+        <div className={styles.topHeaderRight}>
+          <button className={styles.langBtn} onClick={onToggleLang}>
+            {isZh ? 'EN' : 'ZH'}
+          </button>
+          {isMobile && (
+            <button className={styles.demoBtn} onClick={onStart}>
+              Demo →
+            </button>
+          )}
+        </div>
       </header>
 
       <div className={styles.layout}>
-        <aside className={styles.sidebar}>
-          <nav className={styles.navList}>
-            {CHAPTERS.map(ch => {
-              const isActive = ch.id === activeId
-              const summary = isZh ? ch.summaryZh : ch.summaryEn
-              return (
-                <button
-                  key={ch.id}
-                  className={`${styles.navItem} ${isActive ? styles.navItemActive : ''}`}
-                  onClick={() => scrollToChapter(ch.id)}
-                >
-                  <span className={`${styles.navTag} ${isActive ? styles.navTagActive : ''}`}>{ch.id}</span>
-                  <span className={styles.navLabel}>{isZh ? ch.navZh : ch.navEn}</span>
-                  <span className={styles.navSummary}>{summary}</span>
-                </button>
-              )
-            })}
-          </nav>
-        </aside>
+        {!isMobile && (
+          <aside className={styles.sidebar}>
+            <nav className={styles.navList}>
+              {CHAPTERS.map(ch => {
+                const isActive = ch.id === activeId
+                const summary = isZh ? ch.summaryZh : ch.summaryEn
+                return (
+                  <button
+                    key={ch.id}
+                    className={`${styles.navItem} ${isActive ? styles.navItemActive : ''}`}
+                    onClick={() => scrollToChapter(ch.id)}
+                  >
+                    <span className={`${styles.navTag} ${isActive ? styles.navTagActive : ''}`}>{ch.id}</span>
+                    <span className={styles.navLabel}>{isZh ? ch.navZh : ch.navEn}</span>
+                    <span className={styles.navSummary}>{summary}</span>
+                  </button>
+                )
+              })}
+            </nav>
+          </aside>
+        )}
 
         <main className={styles.content}>
           {CHAPTERS.map(ch => {
-            const shown = animated.has(ch.id)
+            const shown = isMobile ? true : animated.has(ch.id)
+            const mobileState = mobileSectionState[ch.id] ?? 'idle'
+            const mobileClass = isMobile
+              ? [
+                styles.sectionMobile,
+                mobileState === 'visible' ? styles.visible : '',
+                mobileState === 'exiting' ? styles.exiting : '',
+              ].filter(Boolean).join(' ')
+              : ''
             return (
               <section
                 key={ch.id}
                 ref={setChapterRef(ch.id)}
                 data-chapter-id={ch.id}
-                className={styles.chapter}
+                className={`${styles.chapter} ${mobileClass}`}
               >
                 <div className={styles.chapterInner}>
                   <div className={`${styles.chapterIndex} ${shown ? styles.indexShown : ''}`}>
@@ -401,4 +489,25 @@ export default function IntroLanding({ lang, onStart, onToggleLang }) {
       </div>
     </div>
   )
+}
+
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(
+    () => window.matchMedia('(max-width: 768px)').matches
+  )
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 768px)')
+    const sync = () => setIsMobile(media.matches)
+    sync()
+
+    if (media.addEventListener) {
+      media.addEventListener('change', sync)
+      return () => media.removeEventListener('change', sync)
+    }
+    media.addListener(sync)
+    return () => media.removeListener(sync)
+  }, [])
+
+  return isMobile
 }
