@@ -5,6 +5,7 @@ import { useClusterStore } from '../store/clusterStore'
 // enough that the user sees recovery happen visibly, but not so short that
 // we spam the server during a prolonged outage.
 const RECONNECT_DELAY_MS = 2000
+const MOBILE_STATE_BATCH_MS = 66
 
 function getWsUrl() {
   if (import.meta.env.VITE_WS_URL) {
@@ -25,9 +26,43 @@ export function useRaftWS() {
   const wsRef    = useRef(null)
   const timerRef = useRef(null)
   const disposedRef = useRef(false)
+  const isMobileRef = useRef(window.matchMedia('(max-width: 768px)').matches)
+  const stateFlushTimerRef = useRef(null)
+  const pendingPayloadRef = useRef(null)
 
   useEffect(() => {
     disposedRef.current = false
+    isMobileRef.current = window.matchMedia('(max-width: 768px)').matches
+
+    const media = window.matchMedia('(max-width: 768px)')
+    function syncMobile() {
+      isMobileRef.current = media.matches
+    }
+    if (media.addEventListener) {
+      media.addEventListener('change', syncMobile)
+    } else {
+      media.addListener(syncMobile)
+    }
+
+    function scheduleStateApply(payload) {
+      if (!isMobileRef.current) {
+        applyStateUpdate(payload)
+        return
+      }
+
+      pendingPayloadRef.current = payload
+      if (stateFlushTimerRef.current) return
+
+      // Mobile devices are CPU-constrained under continuous cluster updates.
+      // Coalescing to ~15fps keeps touch interactions responsive while still
+      // showing protocol progression smoothly.
+      stateFlushTimerRef.current = setTimeout(() => {
+        stateFlushTimerRef.current = null
+        const nextPayload = pendingPayloadRef.current
+        pendingPayloadRef.current = null
+        if (nextPayload) applyStateUpdate(nextPayload)
+      }, MOBILE_STATE_BATCH_MS)
+    }
 
     function connect() {
       if (disposedRef.current) return
@@ -47,7 +82,7 @@ export function useRaftWS() {
         try { msg = JSON.parse(e.data) } catch { return }
 
         if (msg.type === 'STATE_UPDATE') {
-          applyStateUpdate(msg.payload)
+          scheduleStateApply(msg.payload)
         }
       }
 
@@ -97,8 +132,17 @@ export function useRaftWS() {
       disposedRef.current = true
       clearTimeout(timerRef.current)
       timerRef.current = null
+      clearTimeout(stateFlushTimerRef.current)
+      stateFlushTimerRef.current = null
+      pendingPayloadRef.current = null
       setSendFault(null)
       setSendClientCommand(null)
+
+      if (media.addEventListener) {
+        media.removeEventListener('change', syncMobile)
+      } else {
+        media.removeListener(syncMobile)
+      }
 
       const ws = wsRef.current
       wsRef.current = null

@@ -48,6 +48,8 @@
     background: #FFFFFF;
     color: #4A5C6A;
     font-size: 9px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .modeBtnPrimary {
@@ -82,6 +84,8 @@
     pointer-events: none;
     transition: transform 150ms ease, opacity 150ms ease;
     transition-delay: calc((3 - var(--i)) * 14ms);
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .actionBtnOpen {
@@ -109,6 +113,8 @@
     justify-content: center;
     box-shadow: 0 3px 10px rgba(17, 33, 45, 0.18);
     transition: transform 150ms ease;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .mainBtnOpen {

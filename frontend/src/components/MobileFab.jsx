@@ -66,6 +66,13 @@ export default function MobileFab() {
     cancelAction()
   }
 
+  function handleFastTap(action) {
+    return (e) => {
+      e.preventDefault()
+      action()
+    }
+  }
+
   return (
     <div className={styles.wrap}>
       {actionMode && (
@@ -81,10 +88,10 @@ export default function MobileFab() {
                 {`Group A ${partitionGroupA.length}/${aliveNodes.length}`}
               </div>
               <div className={styles.modeActions}>
-                <button className={styles.modeBtn} onClick={cancelAction}>Cancel</button>
+                <button className={styles.modeBtn} onPointerDown={handleFastTap(cancelAction)}>Cancel</button>
                 <button
                   className={`${styles.modeBtn} ${styles.modeBtnPrimary}`}
-                  onClick={confirmGroupA}
+                  onPointerDown={handleFastTap(confirmGroupA)}
                   disabled={!canConfirmGroupA}
                 >
                   Confirm
@@ -100,10 +107,10 @@ export default function MobileFab() {
                 {`A: ${partitionGroupA.join(', ') || '—'} | B: ${groupB.join(', ') || '—'}`}
               </div>
               <div className={styles.modeActions}>
-                <button className={styles.modeBtn} onClick={cancelAction}>Cancel</button>
+                <button className={styles.modeBtn} onPointerDown={handleFastTap(cancelAction)}>Cancel</button>
                 <button
                   className={`${styles.modeBtn} ${styles.modeBtnPrimary}`}
-                  onClick={commitPartition}
+                  onPointerDown={handleFastTap(commitPartition)}
                 >
                   Partition
                 </button>
@@ -123,7 +130,7 @@ export default function MobileFab() {
               item.danger ? styles.actionBtnDanger : '',
             ].filter(Boolean).join(' ')}
             style={{ '--i': idx }}
-            onClick={() => triggerAction(item.mode)}
+            onPointerDown={handleFastTap(() => triggerAction(item.mode))}
           >
             {item.label}
           </button>
@@ -132,7 +139,7 @@ export default function MobileFab() {
 
       <button
         className={`${styles.mainBtn} ${open ? styles.mainBtnOpen : ''}`}
-        onClick={() => setOpen(v => !v)}
+        onPointerDown={handleFastTap(() => setOpen(v => !v))}
         aria-label="Toggle actions"
       >
         +

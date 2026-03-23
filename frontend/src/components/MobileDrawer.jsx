@@ -65,6 +65,18 @@ export default function MobileDrawer({
   const leaderId = leader?.id ?? '—'
   const leaderTerm = leader?.term ?? '—'
 
+  function onHandlePointerDown(e) {
+    e.preventDefault()
+    onHandleClick()
+  }
+
+  function handleFastTap(action) {
+    return (e) => {
+      e.preventDefault()
+      action()
+    }
+  }
+
   function onHandleClick() {
     if (suppressClickRef.current) return
     // Tap on handle should behave as a direct fold/unfold control.
@@ -77,7 +89,9 @@ export default function MobileDrawer({
     const y = e.touches?.[0]?.clientY
     if (typeof y !== 'number') return
     const rect = e.currentTarget.getBoundingClientRect()
-    const inDragZone = y <= rect.top + 56
+    // Restrict drag capture close to the handle so tab/content taps are not
+    // misclassified as drag starts.
+    const inDragZone = y <= rect.top + 44
     if (!inDragZone) {
       touchRef.current.active = false
       return
@@ -96,7 +110,7 @@ export default function MobileDrawer({
     const y = e.touches?.[0]?.clientY
     if (typeof y !== 'number') return
     const delta = touchRef.current.startY - y
-    if (Math.abs(delta) > 4) touchRef.current.moved = true
+    if (Math.abs(delta) > 10) touchRef.current.moved = true
 
     // We clamp to known drawer stops so drag remains predictable
     // regardless of device height and orientation.
@@ -115,7 +129,7 @@ export default function MobileDrawer({
       suppressClickRef.current = true
       window.setTimeout(() => {
         suppressClickRef.current = false
-      }, 180)
+      }, 90)
     }
     const next = nearestMode(dragHeight, viewportHeight)
     setDragHeight(null)
@@ -134,7 +148,7 @@ export default function MobileDrawer({
       <button
         type="button"
         className={styles.handle}
-        onClick={onHandleClick}
+        onPointerDown={onHandlePointerDown}
       >
         <span className={styles.handleText}>
           {`LEADER node${leaderId} · TERM ${leaderTerm} · ALIVE ${aliveCount}/${totalCount}`}
@@ -150,19 +164,19 @@ export default function MobileDrawer({
           <div className={styles.tabs}>
             <button
               className={`${styles.tabBtn} ${tab === 'node' ? styles.tabBtnActive : ''}`}
-              onClick={() => onTabChange('node')}
+              onPointerDown={handleFastTap(() => onTabChange('node'))}
             >
               NODE
             </button>
             <button
               className={`${styles.tabBtn} ${tab === 'event' ? styles.tabBtnActive : ''}`}
-              onClick={() => onTabChange('event')}
+              onPointerDown={handleFastTap(() => onTabChange('event'))}
             >
               EVENT LOG
             </button>
             <button
               className={`${styles.tabBtn} ${tab === 'tutorial' ? styles.tabBtnActive : ''}`}
-              onClick={() => onTabChange('tutorial')}
+              onPointerDown={handleFastTap(() => onTabChange('tutorial'))}
             >
               {lang === 'zh' ? '教程' : 'TUTORIAL'}
             </button>

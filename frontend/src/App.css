@@ -199,6 +199,8 @@
     color: #4A5C6A;
     font-size: 9px;
     letter-spacing: 0.06em;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .statusPillCompact {

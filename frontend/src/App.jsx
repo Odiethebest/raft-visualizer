@@ -51,6 +51,13 @@ function LiveDemoApp({ onBack }) {
   const alive  = nodes.filter(n => n.alive).length
   const text = appCopy(lang)
 
+  function handleFastTap(action) {
+    return (e) => {
+      e.preventDefault()
+      action()
+    }
+  }
+
   function canvasHeightFor(mode) {
     if (mode === 'full') return 'calc(100vh - 40px - 85vh)'
     if (mode === 'half') return 'calc(100vh - 40px - 50vh)'
@@ -84,13 +91,13 @@ function LiveDemoApp({ onBack }) {
       <div className="app mobileApp">
         <header className="header mobileHeader">
           <div className="mobileHeaderLeft">
-            <button className="mobileHeaderBtn" onClick={onBack}>
+            <button className="mobileHeaderBtn" onPointerDown={handleFastTap(onBack)}>
               {mobileBackLabel}
             </button>
             <span className="mobileHeaderTitle">Raft Consensus · By Odie Yang</span>
           </div>
           <div className="mobileHeaderRight">
-            <button className="mobileHeaderBtn" onClick={toggleLang}>
+            <button className="mobileHeaderBtn" onPointerDown={handleFastTap(toggleLang)}>
               {text.langToggle}
             </button>
             <StatusPill status={wsStatus} lang={lang} compact />

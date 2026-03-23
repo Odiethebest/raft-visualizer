@@ -51,6 +51,8 @@
   color: #4A5C6A;
   font-size: 12px;
   font-weight: 500;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .langBtn:hover {
@@ -67,6 +69,8 @@
   font-size: 10px;
   letter-spacing: 0.14em;
   white-space: nowrap;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .layout {
@@ -291,6 +295,8 @@
   font-size: 14px;
   letter-spacing: 0.45px;
   font-weight: 600;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .startBtn:hover {

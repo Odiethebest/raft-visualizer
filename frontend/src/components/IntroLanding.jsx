@@ -395,6 +395,13 @@ export default function IntroLanding({ lang, onStart, onToggleLang }) {
     )
   }
 
+  function handleFastTap(action) {
+    return (e) => {
+      e.preventDefault()
+      action()
+    }
+  }
+
   return (
     <div className={styles.page} ref={pageRef}>
       <header className={styles.topHeader}>
@@ -405,10 +412,10 @@ export default function IntroLanding({ lang, onStart, onToggleLang }) {
           <span className={styles.badge}>By Odie Yang</span>
         </div>
         <div className={styles.topHeaderRight}>
-          <button className={styles.langBtn} onClick={onToggleLang}>
+          <button className={styles.langBtn} onPointerDown={handleFastTap(onToggleLang)}>
             {isZh ? 'EN' : 'ZH'}
           </button>
-          <button className={styles.demoBtn} onClick={onStart}>
+          <button className={styles.demoBtn} onPointerDown={handleFastTap(onStart)}>
             Demo →
           </button>
         </div>
@@ -478,7 +485,7 @@ export default function IntroLanding({ lang, onStart, onToggleLang }) {
               <p className={styles.ctaHint}>
                 {isZh ? '以上所有行为均可在演示中实时触发' : 'All behaviors above can be triggered in real time in the demo'}
               </p>
-              <button className={styles.startBtn} onClick={onStart}>
+              <button className={styles.startBtn} onPointerDown={handleFastTap(onStart)}>
                 {isZh ? '开始演示 START DEMO' : 'START DEMO'}
               </button>
             </div>
