@@ -1,58 +1,78 @@
-# Raft Visualizer Frontend
+# Frontend: Raft Consensus Visualizer
 
-This folder contains the React + Vite UI for the Raft simulator backend.
-It renders:
+This directory contains the React + Vite client for the Raft simulator backend.
+It has two runtime surfaces:
 
-- an intro landing page (waterfall-style Raft primer + Start Demo entry),
-- the live cluster graph (nodes + animated RPC traffic),
-- a right-side inspection panel (node stats + log entries + event stream),
-- a bottom control bar (fault injection + command submission),
-- a built-in guide card with Chinese/English display support.
+- Intro landing: narrative Raft walkthrough (desktop sidebar navigation, mobile full-screen chapter flow).
+- Live demo: real-time cluster visualization with fault injection and log inspection.
 
-## Requirements
+## Stack
 
-- Node.js 20+ (recommended: latest LTS)
-- Backend server running on `http://localhost:8080` (default)
+- React 19
+- Zustand (global state)
+- React Flow (`@xyflow/react`) for graph rendering
+- Vite 8
 
 ## Quick Start
 
-From this `frontend/` directory:
+Run from `frontend/`:
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open: `http://127.0.0.1:5173` (or the URL printed by Vite).
+Default dev URL: `http://127.0.0.1:5173`
 
-## Build & Preview
+Production build:
 
 ```bash
 npm run build
 npm run preview
 ```
 
-## How Frontend Talks to Backend
+## Runtime Flow
 
-The app uses a WebSocket connection to `/ws`.
+`App.jsx` is the root switch:
 
-- In development, Vite proxies `/ws` to `http://localhost:8080` (see `vite.config.js`).
-- In production/default behavior, the app connects to the current page host (`ws://<host>/ws` or `wss://<host>/ws`).
-- You can override the endpoint with `VITE_WS_URL`.
+1. Render `IntroLanding` first.
+2. After `Start Demo`, mount `LiveDemoApp`.
+3. `LiveDemoApp` mounts `useRaftWS()`, so WebSocket traffic starts only while demo is open.
 
-Incoming message shape (from backend):
+Desktop demo layout:
+
+- Top header
+- Left canvas (`ClusterView` + `ControlPanel`)
+- Right panel (`LogPanel` + optional `EventStream`)
+
+Mobile demo layout (`max-width: 768px`):
+
+- Compact header
+- React Flow canvas with dynamic height (`--canvas-height`)
+- Floating action menu (`MobileFab`)
+- Bottom drawer (`MobileDrawer`) with tabs (`NODE`, `EVENT LOG`, `TUTORIAL`)
+
+## WebSocket Contract
+
+Connection target:
+
+- Dev: `/ws` is proxied to `http://localhost:8080` in `vite.config.js`
+- Prod default: `ws(s)://<current-host>/ws`
+- Override: `VITE_WS_URL`
+
+Incoming:
 
 ```json
 {
   "type": "STATE_UPDATE",
   "payload": {
-    "nodes": [...],
-    "inFlight": [...]
+    "nodes": [],
+    "inFlight": []
   }
 }
 ```
 
-Outgoing fault injection shape (from frontend):
+Outgoing:
 
 ```json
 {
@@ -66,106 +86,97 @@ Outgoing fault injection shape (from frontend):
 }
 ```
 
-## Architecture Overview
+```json
+{
+  "type": "CLIENT_COMMAND",
+  "payload": { "command": "set x=1" }
+}
+```
 
-### 1) WebSocket lifecycle
-- File: `src/hooks/useRaftWS.js`
-- Responsibilities:
-  - connect/reconnect,
-  - parse WS messages,
-  - push snapshots into the store,
-  - expose `sendFault(...)` to the UI.
+`CLIENT_COMMAND` is used by the mobile drawer command input; desktop submit uses `FAULT_INJECT` with `action: "submit"`.
 
-### 2) Global state
-- File: `src/store/clusterStore.js`
-- Built with Zustand.
-- Stores:
-  - cluster snapshot (`nodes`, `inFlight`),
-  - UI state (`selectedNodeId`, `wsStatus`, `lang`),
-  - derived timeline events (`events`).
+## State Model (`src/store/clusterStore.js`)
 
-### 3) Rendering
-- `src/components/ClusterView.jsx`: graph canvas (React Flow), node layout, animated edges.
-- `src/components/NodeCard.jsx`: each node appearance by role/aliveness.
-- `src/components/LogPanel.jsx`: selected node stats + log entries.
-- `src/components/EventStream.jsx`: derived event timeline.
-- `src/components/ControlPanel.jsx`: submit command / kill / restart / partition / heal.
-- `src/components/HintCard.jsx`: on-screen guide with reopen event support.
+Primary state:
 
-### 4) Text / language system
-- File: `src/i18n/uiText.js`
-- Provides centralized labels/formatters for:
-  - app header text,
-  - status labels,
-  - control panel labels,
-  - node/log/event copy,
-  - event message formatting.
+- Cluster snapshot: `nodes`, `inFlight`
+- UI state: `selectedNodeId`, `wsStatus`, `lang`, `eventLogOpen`
+- Fault workflow state: `actionMode`, `partitionGroupA`, `activePartitionGroups`
+- Derived stream: `eventLogs` (capped to latest 60)
 
-## UI Language Toggle
+Key behaviors:
 
-The header includes a language toggle button next to the Guide button.
+- `applyStateUpdate` normalizes logs and marks committed entries (`entry.index <= commitIndex`).
+- Store derives high-level event logs from role/term/alive/commit changes plus RPC deltas.
+- One-shot node pulse tokens (`pulseSeq`) are generated in store to drive deterministic role/term transition animation.
 
-- default: `en`
-- `zh` mode: intentionally mixed Chinese + English technical terms.
-- `en` mode: pure professional English labels/messages.
-- Language preference is persisted in `localStorage` (`raft-ui-lang`).
+## Component Responsibilities
 
-## Demo Entry Flow
+- `src/components/IntroLanding.jsx`: chapter-based introduction, language toggle, desktop section nav, mobile full-screen storytelling.
+- `src/components/ClusterView.jsx`: node positioning, leader→follower directed edges, heartbeat animations, click routing for selection and fault target picking.
+- `src/components/NodeCard.jsx`: visual encoding for `leader/follower/candidate/dead`, selection, and fault-target highlights.
+- `src/components/ControlPanel.jsx`: desktop command + fault controls and desktop tutorial panel.
+- `src/components/LogPanel.jsx`: selected node stats and replicated log entries.
+- `src/components/EventStream.jsx`: timestamped event/RPC timeline.
+- `src/components/MobileDrawer.jsx`: mobile collapsed/half/full drawer with tabs and touch drag.
+- `src/components/MobileFab.jsx`: mobile fault action entry and partition two-step confirm flow.
+- `src/components/HintCard.jsx`: desktop in-canvas quick guide with dismiss persistence.
 
-- First screen: concise intro landing with a waterfall-style Raft walkthrough.
-- Clicking `Start Demo` mounts the live visualizer and opens the WebSocket.
-- Closing the browser tab disconnects WebSocket; backend then stops the active
-  simulation when no clients remain.
+## i18n & Persistence
 
-## Guide Card Behavior
+All UI copy is centralized in `src/i18n/uiText.js`.
 
-- The guide card can auto-dismiss after meaningful interaction.
-- It can always be reopened from the header Guide button.
-- Dismiss state is persisted in `localStorage` (`raft-hint-dismissed`).
+- Default language: English
+- Chinese mode: mixed Chinese/English technical terms
+- English mode: pure English wording
+- LocalStorage keys:
+  - `raft-ui-lang`: language preference
+  - `raft-hint-dismissed`: hint card dismissal
 
-## Performance Notes
+## Scripts
 
-- In-flight message rendering is intentionally bounded to avoid overdraw.
-- Edge animation duration is tuned by message type (vote vs append/heartbeat).
-- Snapshot ingestion trims very large in-flight arrays defensively.
+- `npm run dev` start local dev server
+- `npm run build` build production assets
+- `npm run preview` preview production build
+- `npm run lint` run ESLint
 
-## Project Structure (Frontend Only)
+## Frontend Tree
 
 ```text
 frontend/
   src/
     App.jsx
+    App.css
+    index.css
+    main.jsx
     hooks/useRaftWS.js
     store/clusterStore.js
     i18n/uiText.js
     components/
       ClusterView.jsx
-      NodeCard.jsx
-      LogPanel.jsx
-      EventStream.jsx
       ControlPanel.jsx
+      EventStream.jsx
       HintCard.jsx
+      IntroLanding.jsx
+      LogPanel.jsx
+      MobileDrawer.jsx
+      MobileFab.jsx
+      NodeCard.jsx
 ```
-
-## Useful Scripts
-
-- `npm run dev` - start development server
-- `npm run build` - production build
-- `npm run preview` - preview built output
-- `npm run lint` - lint source files
 
 ## Troubleshooting
 
-1. **No data on screen**
-   - Ensure backend is running on `:8080`.
-   - Check browser network tab for `/ws` upgrade success.
+1. No nodes rendered
+   - Ensure backend WS endpoint is reachable.
+   - Check browser DevTools for successful `/ws` upgrade and `STATE_UPDATE` frames.
 
-2. **WS keeps reconnecting**
-   - Verify backend process is stable and not restarted repeatedly.
-   - Confirm reverse proxy / local firewall is not closing WebSocket connections.
+2. Continuous reconnecting
+   - Backend likely unavailable or reverse proxy is closing WS.
+   - Verify `VITE_WS_URL` / host routing.
 
-3. **Guide card does not appear**
-   - Use the Guide button in header to reopen it.
+3. Fault actions do nothing
+   - Confirm WebSocket status is `Connected`.
+   - In node-target modes, you must tap/click a highlighted valid node.
 
-4. **Language does not switch**
-   - Confirm `lang` is updating in Zustand (`raft-ui-lang` in `localStorage`).
+4. Language or guide state seems stale
+   - Clear `raft-ui-lang` / `raft-hint-dismissed` in localStorage.
