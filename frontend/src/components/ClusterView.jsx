@@ -107,10 +107,43 @@ function FitViewOnLoad({ nodeCount }) {
   const fitted = useRef(false)
 
   useEffect(() => {
-    if (nodeCount > 0 && !fitted.current) {
-      fitted.current = true
-      const id = setTimeout(() => fitView({ padding: 0.25 }), 50)
-      return () => clearTimeout(id)
+    if (nodeCount === 0 || fitted.current) return
+
+    let cancelled = false
+    let rafId = null
+    let attempts = 0
+    const maxAttempts = 24
+
+    // Retrying fitView removes timing races between ReactFlow measurement and
+    // our mount cycle, so first-load and re-entry land on the same viewport.
+    const tryFit = () => {
+      if (cancelled || fitted.current) return
+      attempts += 1
+
+      Promise.resolve(fitView({ padding: 0.25, duration: 0 }))
+        .then((ok) => {
+          if (cancelled || fitted.current) return
+          if (ok) {
+            fitted.current = true
+            return
+          }
+          if (attempts < maxAttempts) {
+            rafId = requestAnimationFrame(tryFit)
+          }
+        })
+        .catch(() => {
+          if (cancelled || fitted.current) return
+          if (attempts < maxAttempts) {
+            rafId = requestAnimationFrame(tryFit)
+          }
+        })
+    }
+
+    rafId = requestAnimationFrame(tryFit)
+
+    return () => {
+      cancelled = true
+      if (rafId !== null) cancelAnimationFrame(rafId)
     }
   }, [nodeCount, fitView])
 
